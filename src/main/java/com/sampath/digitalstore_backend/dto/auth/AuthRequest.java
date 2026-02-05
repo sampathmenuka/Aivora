@@ -1,5 +1,15 @@
 package com.sampath.digitalstore_backend.dto.auth;
 
-}
-    // Fields and methods for authentication request DTO
+import lombok.*;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class AuthRequest {
+
+    private String name;     // used for register
+    private String email;
+    private String password;
+}

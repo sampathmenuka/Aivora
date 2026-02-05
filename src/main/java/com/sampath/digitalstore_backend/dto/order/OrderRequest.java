@@ -1,5 +1,15 @@
 package com.sampath.digitalstore_backend.dto.order;
 
+import lombok.*;
+
+import java.util.List;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class OrderRequest {
-    // Fields and methods for order request DTO
+
+    private List<Long> productIds;
 }
