@@ -10,6 +10,8 @@ import com.sampath.digitalstore_backend.repository.UserRepository;
 import com.sampath.digitalstore_backend.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
+import com.sampath.digitalstore_backend.exception.UnauthorizedException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -87,5 +89,50 @@ public class ProductServiceImpl implements ProductService {
                 .thumbnailUrl(product.getThumbnailUrl())
                 .isPublished(product.isPublished())
                 .build();
+    }
+
+    @Override
+    public ProductResponse publishProduct(Long productId, String sellerEmail) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        User seller = userRepository.findByEmail(sellerEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        // Only product owner seller OR admin can publish
+        boolean isOwner = product.getSeller().getId().equals(seller.getId());
+        boolean isAdmin = seller.getRole().name().equals("ADMIN");
+
+        if (!isOwner && !isAdmin) {
+            throw new UnauthorizedException("You are not allowed to publish this product");
+        }
+
+        product.setPublished(true);
+        productRepository.save(product);
+
+        return mapToResponse(product);
+    }
+
+    @Override
+    public ProductResponse unpublishProduct(Long productId, String sellerEmail) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        User seller = userRepository.findByEmail(sellerEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        boolean isOwner = product.getSeller().getId().equals(seller.getId());
+        boolean isAdmin = seller.getRole().name().equals("ADMIN");
+
+        if (!isOwner && !isAdmin) {
+            throw new UnauthorizedException("You are not allowed to unpublish this product");
+        }
+
+        product.setPublished(false);
+        productRepository.save(product);
+
+        return mapToResponse(product);
     }
 }

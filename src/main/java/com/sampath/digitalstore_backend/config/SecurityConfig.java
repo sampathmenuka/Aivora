@@ -3,6 +3,7 @@ package com.sampath.digitalstore_backend.config;
 import com.sampath.digitalstore_backend.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.*;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.*;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -27,6 +28,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/products/public/**").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/products/*/publish").hasAnyRole("SELLER","ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/products/*/unpublish").hasAnyRole("SELLER","ADMIN")
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->
