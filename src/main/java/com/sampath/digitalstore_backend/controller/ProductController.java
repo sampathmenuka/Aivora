@@ -33,4 +33,22 @@ public class ProductController {
         Long sellerId = Long.parseLong(userDetails.getUsername()); // we will adjust this properly next
         return ResponseEntity.ok(productService.createProduct(request, sellerId));
     }
+
+    @PutMapping("/{id}/publish")
+    public ResponseEntity<ProductResponse> publish(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(productService.publishProduct(id, email));
+    }
+
+    @PutMapping("/{id}/unpublish")
+    public ResponseEntity<ProductResponse> unpublish(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(productService.unpublishProduct(id, email));
+    }
 }
