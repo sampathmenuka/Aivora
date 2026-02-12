@@ -2,12 +2,13 @@ package com.sampath.digitalstore_backend.service;
 
 import com.sampath.digitalstore_backend.dto.product.ProductRequest;
 import com.sampath.digitalstore_backend.dto.product.ProductResponse;
+import com.sampath.digitalstore_backend.dto.product.PurchaseProductResponse;
 
 import java.util.List;
 
 public interface ProductService {
 
-    ProductResponse createProduct(ProductRequest request, Long sellerId);
+    ProductResponse createProductByEmail(ProductRequest request, String email);
 
     List<ProductResponse> getAllPublishedProducts();
 
@@ -17,5 +18,8 @@ public interface ProductService {
 
     void deleteProduct(Long productId);
 
-    ProductResponse createProductByEmail(ProductRequest request, String email);
+    // ✅ Purchases / secure download
+    List<PurchaseProductResponse> getMyPurchasedProducts(String email);
+
+    String getSecureDownloadUrl(Long productId, String email);
 }
