@@ -1,8 +1,6 @@
 package com.sampath.digitalstore_backend.service;
 
-import com.sampath.digitalstore_backend.dto.product.ProductRequest;
-import com.sampath.digitalstore_backend.dto.product.ProductResponse;
-import com.sampath.digitalstore_backend.dto.product.PurchaseProductResponse;
+import com.sampath.digitalstore_backend.dto.product.*;
 
 import java.util.List;
 
@@ -18,7 +16,11 @@ public interface ProductService {
 
     void deleteProduct(Long productId);
 
-    ProductResponse publishProduct(Long productId, String sellerEmail);
+    List<PurchaseProductResponse> getMyPurchasedProducts(String email);
 
-    ProductResponse unpublishProduct(Long productId, String sellerEmail);
+    String getSecureDownloadUrl(Long productId, String email);
+
+    ProductResponse publishProduct(Long productId, String email);
+
+    ProductResponse unpublishProduct(Long productId, String email);
 }
