@@ -31,6 +31,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/products/*/publish").hasAnyRole("SELLER","ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/products/*/unpublish").hasAnyRole("SELLER","ADMIN")
                         .requestMatchers("/api/stripe/webhook").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/products/*/reviews/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session ->
