@@ -6,6 +6,17 @@ import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api";
 import { authStore } from "@/lib/auth";
 
+function dashboardFor(role: string): string {
+  switch (role.toUpperCase()) {
+    case "ADMIN":
+      return "/dashboard/admin";
+    case "SELLER":
+      return "/dashboard/seller";
+    default:
+      return "/dashboard/user";
+  }
+}
+
 export function useAuth() {
   const router = useRouter();
   const [hydrated, setHydrated] = useState(false);
@@ -21,7 +32,7 @@ export function useAuth() {
     onSuccess: ({ data }) => {
       authStore.setAuth(data.token, data.email, data.role);
       setUser({ email: data.email, role: data.role });
-      router.push("/");
+      router.push(dashboardFor(data.role));
     },
   });
 
@@ -30,7 +41,7 @@ export function useAuth() {
     onSuccess: ({ data }) => {
       authStore.setAuth(data.token, data.email, data.role);
       setUser({ email: data.email, role: data.role });
-      router.push("/");
+      router.push(dashboardFor(data.role));
     },
   });
 
