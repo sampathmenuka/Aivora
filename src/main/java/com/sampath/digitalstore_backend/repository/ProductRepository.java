@@ -1,5 +1,13 @@
 package com.sampath.digitalstore_backend.repository;
 
-public interface ProductRepository {
-    // Repository logic for products
+import com.sampath.digitalstore_backend.entity.Product;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface ProductRepository extends JpaRepository<Product, Long> {
+
+    List<Product> findByIsPublishedTrue();
+
+    List<Product> findBySellerId(Long sellerId);
 }
