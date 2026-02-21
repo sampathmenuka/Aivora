@@ -1,5 +1,19 @@
 package com.sampath.digitalstore_backend.dto.product;
 
+import lombok.*;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ProductResponse {
-    // Fields and methods for product response DTO
+
+    private Long id;
+    private String title;
+    private String description;
+    private Double price;
+    private String productType;
+    private String thumbnailUrl;
+    private boolean isPublished;
 }
