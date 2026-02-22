@@ -3,6 +3,7 @@ package com.sampath.digitalstore_backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import javax.management.relation.Role;
 import java.time.LocalDateTime;
 
 @Entity
