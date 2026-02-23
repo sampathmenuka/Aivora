@@ -4,6 +4,7 @@ import com.sampath.digitalstore_backend.dto.product.ProductRequest;
 import com.sampath.digitalstore_backend.dto.product.ProductResponse;
 import com.sampath.digitalstore_backend.entity.Product;
 import com.sampath.digitalstore_backend.entity.User;
+import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
 import com.sampath.digitalstore_backend.repository.ProductRepository;
 import com.sampath.digitalstore_backend.repository.UserRepository;
 import com.sampath.digitalstore_backend.service.ProductService;
@@ -21,10 +22,10 @@ public class ProductServiceImpl implements ProductService {
     private final UserRepository userRepository;
 
     @Override
-    public ProductResponse createProduct(ProductRequest request, Long sellerId) {
+    public ProductResponse createProductByEmail(ProductRequest request, String email) {
 
-        User seller = userRepository.findById(sellerId)
-                .orElseThrow(() -> new RuntimeException("Seller not found"));
+        User seller = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Product product = Product.builder()
                 .title(request.getTitle())
@@ -40,6 +41,11 @@ public class ProductServiceImpl implements ProductService {
         productRepository.save(product);
 
         return mapToResponse(product);
+    }
+
+    @Override
+    public ProductResponse createProduct(ProductRequest request, Long sellerId) {
+        return null;
     }
 
     @Override

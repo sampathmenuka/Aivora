@@ -16,4 +16,6 @@ public interface ProductService {
     ProductResponse getProductById(Long productId);
 
     void deleteProduct(Long productId);
+
+    ProductResponse createProductByEmail(ProductRequest request, String email);
 }
