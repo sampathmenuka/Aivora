@@ -55,4 +55,22 @@ public class ProductController {
                 productService.getSecureDownloadUrl(id, userDetails.getUsername())
         );
     }
+
+    @PutMapping("/{id}/publish")
+    public ResponseEntity<ProductResponse> publish(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(productService.publishProduct(id, email));
+    }
+
+    @PutMapping("/{id}/unpublish")
+    public ResponseEntity<ProductResponse> unpublish(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(productService.unpublishProduct(id, email));
+    }
 }

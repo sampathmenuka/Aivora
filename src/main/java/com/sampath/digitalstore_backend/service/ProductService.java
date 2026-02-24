@@ -18,8 +18,9 @@ public interface ProductService {
 
     void deleteProduct(Long productId);
 
-    // ✅ Purchases / secure download
-    List<PurchaseProductResponse> getMyPurchasedProducts(String email);
+    ProductResponse createProductByEmail(ProductRequest request, String email);
 
-    String getSecureDownloadUrl(Long productId, String email);
+    ProductResponse publishProduct(Long productId, String sellerEmail);
+
+    ProductResponse unpublishProduct(Long productId, String sellerEmail);
 }

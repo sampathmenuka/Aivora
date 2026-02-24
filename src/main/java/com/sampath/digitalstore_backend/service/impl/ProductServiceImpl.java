@@ -14,6 +14,8 @@ import com.sampath.digitalstore_backend.repository.UserRepository;
 import com.sampath.digitalstore_backend.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
+import com.sampath.digitalstore_backend.exception.UnauthorizedException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -92,43 +94,48 @@ public class ProductServiceImpl implements ProductService {
                 .build();
     }
 
-    // ✅ My Purchases
     @Override
-    public List<PurchaseProductResponse> getMyPurchasedProducts(String email) {
+    public ProductResponse publishProduct(Long productId, String sellerEmail) {
 
-        User user = userRepository.findByEmail(email)
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        User seller = userRepository.findByEmail(sellerEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-        List<Order> paidOrders = orderRepository.findByUserId(user.getId())
-                .stream()
-                .filter(o -> "PAID".equals(o.getStatus()))
-                .toList();
+        // Only product owner seller OR admin can publish
+        boolean isOwner = product.getSeller().getId().equals(seller.getId());
+        boolean isAdmin = seller.getRole().name().equals("ADMIN");
 
-        return paidOrders.stream()
-                .flatMap(order -> order.getOrderItems().stream())
-                .map(oi -> PurchaseProductResponse.builder()
-                        .productId(oi.getProduct().getId())
-                        .title(oi.getProduct().getTitle())
-                        .productType(oi.getProduct().getProductType())
-                        .previewUrl(oi.getProduct().getPreviewUrl())
-                        .build())
-                .distinct() // ✅ works because DTO has @EqualsAndHashCode(of="productId")
-                .toList();
-    }
-
-    // ✅ Secure download link (Phase 1)
-    @Override
-    public String getSecureDownloadUrl(Long productId, String email) {
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        boolean purchased = orderRepository.hasPurchasedProduct(user.getId(), productId);
-
-        if (!purchased) {
-            throw new UnauthorizedException("You have not purchased this product");
+        if (!isOwner && !isAdmin) {
+            throw new UnauthorizedException("You are not allowed to publish this product");
         }
 
-        return "/api/downloads/products/" + productId;
+        product.setPublished(true);
+        productRepository.save(product);
+
+        return mapToResponse(product);
+    }
+
+    @Override
+    public ProductResponse unpublishProduct(Long productId, String sellerEmail) {
+
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        User seller = userRepository.findByEmail(sellerEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        boolean isOwner = product.getSeller().getId().equals(seller.getId());
+        boolean isAdmin = seller.getRole().name().equals("ADMIN");
+
+        if (!isOwner && !isAdmin) {
+            throw new UnauthorizedException("You are not allowed to unpublish this product");
+        }
+
+        product.setPublished(false);
+        productRepository.save(product);
+
+        return mapToResponse(product);
     }
 }
