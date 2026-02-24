@@ -2,9 +2,13 @@ package com.sampath.digitalstore_backend.service.impl;
 
 import com.sampath.digitalstore_backend.dto.product.ProductRequest;
 import com.sampath.digitalstore_backend.dto.product.ProductResponse;
+import com.sampath.digitalstore_backend.dto.product.PurchaseProductResponse;
+import com.sampath.digitalstore_backend.entity.Order;
 import com.sampath.digitalstore_backend.entity.Product;
 import com.sampath.digitalstore_backend.entity.User;
 import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
+import com.sampath.digitalstore_backend.exception.UnauthorizedException;
+import com.sampath.digitalstore_backend.repository.OrderRepository;
 import com.sampath.digitalstore_backend.repository.ProductRepository;
 import com.sampath.digitalstore_backend.repository.UserRepository;
 import com.sampath.digitalstore_backend.service.ProductService;
@@ -20,6 +24,7 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final OrderRepository orderRepository;
 
     @Override
     public ProductResponse createProductByEmail(ProductRequest request, String email) {
@@ -44,11 +49,6 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public ProductResponse createProduct(ProductRequest request, Long sellerId) {
-        return null;
-    }
-
-    @Override
     public List<ProductResponse> getAllPublishedProducts() {
         return productRepository.findByIsPublishedTrue()
                 .stream()
@@ -67,13 +67,16 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public ProductResponse getProductById(Long productId) {
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         return mapToResponse(product);
     }
 
     @Override
     public void deleteProduct(Long productId) {
+        if (!productRepository.existsById(productId)) {
+            throw new ResourceNotFoundException("Product not found");
+        }
         productRepository.deleteById(productId);
     }
 
@@ -87,5 +90,45 @@ public class ProductServiceImpl implements ProductService {
                 .thumbnailUrl(product.getThumbnailUrl())
                 .isPublished(product.isPublished())
                 .build();
+    }
+
+    // ✅ My Purchases
+    @Override
+    public List<PurchaseProductResponse> getMyPurchasedProducts(String email) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        List<Order> paidOrders = orderRepository.findByUserId(user.getId())
+                .stream()
+                .filter(o -> "PAID".equals(o.getStatus()))
+                .toList();
+
+        return paidOrders.stream()
+                .flatMap(order -> order.getOrderItems().stream())
+                .map(oi -> PurchaseProductResponse.builder()
+                        .productId(oi.getProduct().getId())
+                        .title(oi.getProduct().getTitle())
+                        .productType(oi.getProduct().getProductType())
+                        .previewUrl(oi.getProduct().getPreviewUrl())
+                        .build())
+                .distinct() // ✅ works because DTO has @EqualsAndHashCode(of="productId")
+                .toList();
+    }
+
+    // ✅ Secure download link (Phase 1)
+    @Override
+    public String getSecureDownloadUrl(Long productId, String email) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        boolean purchased = orderRepository.hasPurchasedProduct(user.getId(), productId);
+
+        if (!purchased) {
+            throw new UnauthorizedException("You have not purchased this product");
+        }
+
+        return "/api/downloads/products/" + productId;
     }
 }
