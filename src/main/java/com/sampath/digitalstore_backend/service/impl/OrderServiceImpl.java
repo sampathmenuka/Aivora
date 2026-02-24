@@ -3,6 +3,8 @@ package com.sampath.digitalstore_backend.service.impl;
 import com.sampath.digitalstore_backend.dto.order.OrderRequest;
 import com.sampath.digitalstore_backend.dto.order.OrderResponse;
 import com.sampath.digitalstore_backend.entity.*;
+import com.sampath.digitalstore_backend.exception.BadRequestException;
+import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
 import com.sampath.digitalstore_backend.repository.OrderRepository;
 import com.sampath.digitalstore_backend.repository.ProductRepository;
 import com.sampath.digitalstore_backend.repository.UserRepository;
@@ -26,54 +28,63 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse createOrder(OrderRequest request, Long userId) {
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         List<Product> products = productRepository.findAllById(request.getProductIds());
 
-        double totalAmount = products.stream()
-                .mapToDouble(Product::getPrice)
+        if (products.isEmpty()) {
+            throw new BadRequestException("No products selected");
+        }
+
+        Order order = new Order();
+        order.setOrderNumber(UUID.randomUUID().toString());
+        order.setUser(user);
+        order.setStatus("PENDING");
+
+        List<OrderItem> orderItems = products.stream().map(product -> {
+
+            OrderItem item = new OrderItem();
+            item.setOrder(order);
+            item.setProduct(product);
+            item.setPriceAtPurchase(product.getPrice());
+            item.setQuantity(1);
+
+            double platformFee = product.getPrice() * 0.1;
+            item.setPlatformFee(platformFee);
+            item.setSellerEarnings(product.getPrice() - platformFee);
+
+            return item;
+
+        }).toList();
+
+        order.setOrderItems(orderItems);
+
+        double totalAmount = orderItems.stream()
+                .mapToDouble(OrderItem::getPriceAtPurchase)
                 .sum();
 
-        Order order = Order.builder()
-                .orderNumber(UUID.randomUUID().toString())
-                .user(user)
-                .totalAmount(totalAmount)
-                .status("PENDING")
-                .build();
+        order.setTotalAmount(totalAmount);
 
-        orderRepository.save(order);
+        Order savedOrder = orderRepository.save(order);
 
         return OrderResponse.builder()
-                .orderNumber(order.getOrderNumber())
-                .totalAmount(order.getTotalAmount())
-                .status(order.getStatus())
-                .createdAt(order.getCreatedAt())
-                .products(products.stream().map(Product::getTitle).toList())
+                .orderNumber(savedOrder.getOrderNumber())
+                .totalAmount(savedOrder.getTotalAmount())
+                .status(savedOrder.getStatus())
+                .createdAt(savedOrder.getCreatedAt())
+                .products(products.stream()
+                        .map(Product::getTitle)
+                        .toList())
                 .build();
     }
 
     @Override
     public List<OrderResponse> getUserOrders(Long userId) {
-        return orderRepository.findByUserId(userId)
-                .stream()
-                .map(order -> OrderResponse.builder()
-                        .orderNumber(order.getOrderNumber())
-                        .totalAmount(order.getTotalAmount())
-                        .status(order.getStatus())
-                        .createdAt(order.getCreatedAt())
-                        .build())
-                .collect(Collectors.toList());
+        return List.of();
     }
 
     @Override
     public OrderResponse getOrderByOrderNumber(String orderNumber) {
-        Order order = orderRepository.findByOrderNumber(orderNumber);
-
-        return OrderResponse.builder()
-                .orderNumber(order.getOrderNumber())
-                .totalAmount(order.getTotalAmount())
-                .status(order.getStatus())
-                .createdAt(order.getCreatedAt())
-                .build();
+        return null;
     }
 }

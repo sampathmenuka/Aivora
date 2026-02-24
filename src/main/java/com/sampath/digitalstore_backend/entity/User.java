@@ -3,7 +3,6 @@ package com.sampath.digitalstore_backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import javax.management.relation.Role;
 import java.time.LocalDateTime;
 
 @Entity
@@ -35,7 +34,7 @@ public class User {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Role role;
+    private Role role;  // <-- This now uses YOUR enum
 
     @Column(nullable = false)
     private boolean isEnabled = true;
