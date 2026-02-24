@@ -2,6 +2,7 @@ package com.sampath.digitalstore_backend.controller;
 
 import com.sampath.digitalstore_backend.dto.product.ProductRequest;
 import com.sampath.digitalstore_backend.dto.product.ProductResponse;
+import com.sampath.digitalstore_backend.dto.product.PurchaseProductResponse;
 import com.sampath.digitalstore_backend.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,14 +25,35 @@ public class ProductController {
         return ResponseEntity.ok(productService.getAllPublishedProducts());
     }
 
-    // 🔐 Seller creates product
+    // 🔐 Seller creates product (uses email from JWT)
     @PostMapping
     public ResponseEntity<ProductResponse> createProduct(
             @RequestBody ProductRequest request,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-        Long sellerId = Long.parseLong(userDetails.getUsername()); // we will adjust this properly next
-        return ResponseEntity.ok(productService.createProduct(request, sellerId));
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(productService.createProductByEmail(request, email));
+    }
+
+    // 🔐 My purchases
+    @GetMapping("/my-purchases")
+    public ResponseEntity<List<PurchaseProductResponse>> myPurchases(
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return ResponseEntity.ok(
+                productService.getMyPurchasedProducts(userDetails.getUsername())
+        );
+    }
+
+    // 🔐 Secure download link (Phase 1)
+    @GetMapping("/{id}/download-link")
+    public ResponseEntity<String> downloadLink(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return ResponseEntity.ok(
+                productService.getSecureDownloadUrl(id, userDetails.getUsername())
+        );
     }
 
     @PutMapping("/{id}/publish")

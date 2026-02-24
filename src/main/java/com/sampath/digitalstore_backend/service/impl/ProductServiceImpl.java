@@ -2,9 +2,13 @@ package com.sampath.digitalstore_backend.service.impl;
 
 import com.sampath.digitalstore_backend.dto.product.ProductRequest;
 import com.sampath.digitalstore_backend.dto.product.ProductResponse;
+import com.sampath.digitalstore_backend.dto.product.PurchaseProductResponse;
+import com.sampath.digitalstore_backend.entity.Order;
 import com.sampath.digitalstore_backend.entity.Product;
 import com.sampath.digitalstore_backend.entity.User;
 import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
+import com.sampath.digitalstore_backend.exception.UnauthorizedException;
+import com.sampath.digitalstore_backend.repository.OrderRepository;
 import com.sampath.digitalstore_backend.repository.ProductRepository;
 import com.sampath.digitalstore_backend.repository.UserRepository;
 import com.sampath.digitalstore_backend.service.ProductService;
@@ -22,6 +26,7 @@ public class ProductServiceImpl implements ProductService {
 
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final OrderRepository orderRepository;
 
     @Override
     public ProductResponse createProductByEmail(ProductRequest request, String email) {
@@ -46,11 +51,6 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public ProductResponse createProduct(ProductRequest request, Long sellerId) {
-        return null;
-    }
-
-    @Override
     public List<ProductResponse> getAllPublishedProducts() {
         return productRepository.findByIsPublishedTrue()
                 .stream()
@@ -69,13 +69,16 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public ProductResponse getProductById(Long productId) {
         Product product = productRepository.findById(productId)
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
         return mapToResponse(product);
     }
 
     @Override
     public void deleteProduct(Long productId) {
+        if (!productRepository.existsById(productId)) {
+            throw new ResourceNotFoundException("Product not found");
+        }
         productRepository.deleteById(productId);
     }
 
