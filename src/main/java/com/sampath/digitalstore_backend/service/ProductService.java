@@ -18,8 +18,6 @@ public interface ProductService {
 
     void deleteProduct(Long productId);
 
-    ProductResponse createProductByEmail(ProductRequest request, String email);
-
     ProductResponse publishProduct(Long productId, String sellerEmail);
 
     ProductResponse unpublishProduct(Long productId, String sellerEmail);

@@ -38,6 +38,7 @@ public class Order {
     // PENDING, PAID, FAILED, CANCELLED
 
     private String paymentIntentId; // Stripe payment intent ID
+    private String clientSecret;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
