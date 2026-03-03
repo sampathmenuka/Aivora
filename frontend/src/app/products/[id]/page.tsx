@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api";
+import { authStore } from "@/lib/auth";
 import { useCart } from "@/hooks/useCart";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -35,6 +36,13 @@ export default function ProductDetailPage() {
     mutationFn: (payload: { rating: number; comment: string }) => apiClient.addReview(productId, payload),
     onSuccess: () => reviewsQuery.refetch(),
   });
+
+  const deleteReviewMutation = useMutation({
+    mutationFn: () => apiClient.deleteReview(productId),
+    onSuccess: () => reviewsQuery.refetch(),
+  });
+
+  const currentUser = authStore.getUser();
 
   const product = useMemo(
     () => productsQuery.data?.find((item) => item.id === productId),
@@ -108,7 +116,18 @@ export default function ProductDetailPage() {
         <div className="space-y-3">
           {reviewsQuery.data?.map((review) => (
             <div key={review.id} className="rounded border border-border p-3">
-              <p className="font-medium">{review.userEmail}</p>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <p className="font-medium">{review.userEmail}</p>
+                {currentUser?.email === review.userEmail && (
+                  <button
+                    className="rounded border border-border px-2 py-1 text-xs"
+                    onClick={() => deleteReviewMutation.mutate()}
+                    disabled={deleteReviewMutation.isPending}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
               <p className="text-sm">Rating: {review.rating}/5</p>
               <p className="text-sm text-muted-foreground">{review.comment}</p>
             </div>
