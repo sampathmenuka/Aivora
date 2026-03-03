@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { AxiosError } from "axios";
 import { useAuth } from "@/hooks/useAuth";
 
 const ROLES = [
@@ -10,6 +11,11 @@ const ROLES = [
 ] as const;
 
 type Role = (typeof ROLES)[number]["value"];
+
+function getApiErrorMessage(error: unknown, fallback: string): string {
+  const axiosError = error as AxiosError<{ message?: string; error?: string }>;
+  return axiosError.response?.data?.message ?? axiosError.response?.data?.error ?? fallback;
+}
 
 export default function RegisterPage() {
   const { register, isRegistering, registerError } = useAuth();
@@ -22,6 +28,10 @@ export default function RegisterPage() {
 
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
+    if (!name.trim()) {
+      setValidationError("Name is required.");
+      return;
+    }
     if (password !== confirmPassword) {
       setValidationError("Passwords do not match.");
       return;
@@ -31,8 +41,17 @@ export default function RegisterPage() {
       return;
     }
     setValidationError("");
-    register({ name, email, password, role });
+    register({
+      name: name.trim(),
+      email: email.trim().toLowerCase(),
+      password,
+      role,
+    });
   };
+
+  const backendErrorMessage = registerError
+    ? getApiErrorMessage(registerError, "Registration failed. Please try again.")
+    : "";
 
   return (
     <div className="auth-container">
@@ -128,7 +147,7 @@ export default function RegisterPage() {
           {(validationError || registerError) && (
             <div className="alert-error">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              {validationError || "Registration failed. Please try again."}
+              {validationError || backendErrorMessage}
             </div>
           )}
 
