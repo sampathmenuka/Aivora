@@ -15,5 +15,7 @@ public class ProductResponse {
     private Double price;
     private String productType;
     private String thumbnailUrl;
+    private String previewUrl;
+    private String sellerEmail;
     private boolean isPublished;
 }

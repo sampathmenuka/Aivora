@@ -57,6 +57,26 @@ public class ProductController {
         return ResponseEntity.ok(productService.createProductByEmail(request, email));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<ProductResponse> updateProduct(
+            @PathVariable Long id,
+            @RequestBody ProductRequest request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String email = userDetails.getUsername();
+        return ResponseEntity.ok(productService.updateProduct(id, request, email));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteProduct(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        String email = userDetails.getUsername();
+        productService.deleteProduct(id, email);
+        return ResponseEntity.ok("Product deleted");
+    }
+
     // 🔐 My purchases
     @GetMapping("/my-purchases")
     public ResponseEntity<List<PurchaseProductResponse>> myPurchases(
