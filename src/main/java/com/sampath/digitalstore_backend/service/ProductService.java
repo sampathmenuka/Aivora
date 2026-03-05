@@ -16,7 +16,9 @@ public interface ProductService {
 
     ProductResponse getProductById(Long productId);
 
-    void deleteProduct(Long productId);
+    ProductResponse updateProduct(Long productId, ProductRequest request, String email);
+
+    void deleteProduct(Long productId, String email);
 
     List<PurchaseProductResponse> getMyPurchasedProducts(String email);
 
