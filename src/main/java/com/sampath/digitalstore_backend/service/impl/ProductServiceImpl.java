@@ -138,4 +138,42 @@ public class ProductServiceImpl implements ProductService {
 
         return mapToResponse(product);
     }
+
+    @Override
+    public String getSecureDownloadUrl(Long productId, String email) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        boolean purchased = orderRepository.hasPurchasedProduct(user.getId(), productId);
+
+        if (!purchased) {
+            throw new UnauthorizedException("You have not purchased this product");
+        }
+
+        return "/api/downloads/products/" + productId;
+    }
+
+    @Override
+    public List<PurchaseProductResponse> getMyPurchasedProducts(String email) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        List<Order> paidOrders = orderRepository.findByUserId(user.getId())
+                .stream()
+                .filter(o -> "PAID".equals(o.getStatus()))
+                .toList();
+
+        return paidOrders.stream()
+                .flatMap(order -> order.getOrderItems().stream())
+                .map(oi -> PurchaseProductResponse.builder()
+                        .productId(oi.getProduct().getId())
+                        .title(oi.getProduct().getTitle())
+                        .productType(oi.getProduct().getProductType())
+                        .previewUrl(oi.getProduct().getPreviewUrl())
+                        .build())
+                .distinct()
+                .toList();
+    }
 }
