@@ -12,4 +12,5 @@ public class AuthRequest {
     private String name;     // used for register
     private String email;
     private String password;
+    private String role;     // optional: USER (default) or SELLER
 }

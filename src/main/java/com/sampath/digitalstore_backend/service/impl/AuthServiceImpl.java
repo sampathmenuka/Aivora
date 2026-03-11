@@ -29,11 +29,24 @@ public class AuthServiceImpl implements AuthService {
             throw new BadRequestException("Email already exists");
         }
 
+        Role assignedRole = Role.USER;
+        if (request.getRole() != null) {
+            try {
+                Role requested = Role.valueOf(request.getRole().toUpperCase());
+                // Only allow USER or SELLER during self-registration
+                if (requested == Role.USER || requested == Role.SELLER) {
+                    assignedRole = requested;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Invalid role string → fall back to USER
+            }
+        }
+
         User user = User.builder()
                 .name(request.getName())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
-                .role(Role.USER)
+                .role(assignedRole)
                 .build();
 
         userRepository.save(user);
@@ -42,6 +55,7 @@ public class AuthServiceImpl implements AuthService {
 
         return AuthResponse.builder()
                 .email(user.getEmail())
+                .name(user.getName())
                 .role(user.getRole().name())
                 .token(token)
                 .build();
@@ -65,6 +79,7 @@ public class AuthServiceImpl implements AuthService {
 
         return AuthResponse.builder()
                 .email(user.getEmail())
+                .name(user.getName())
                 .role(user.getRole().name())
                 .token(token)
                 .build();
