@@ -80,11 +80,45 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public List<OrderResponse> getUserOrders(Long userId) {
-        return List.of();
+
+        List<Order> orders = orderRepository.findByUserId(userId);
+
+        return orders.stream().map(order -> {
+
+            List<String> products = order.getOrderItems().stream()
+                    .map(item -> item.getProduct().getTitle())
+                    .toList();
+
+            return OrderResponse.builder()
+                    .orderNumber(order.getOrderNumber())
+                    .totalAmount(order.getTotalAmount())
+                    .status(order.getStatus())
+                    .createdAt(order.getCreatedAt())
+                    .products(products)
+                    .build();
+
+        }).collect(Collectors.toList());
     }
 
     @Override
     public OrderResponse getOrderByOrderNumber(String orderNumber) {
-        return null;
+
+        Order order = orderRepository.findByOrderNumber(orderNumber);
+
+        if (order == null) {
+            throw new ResourceNotFoundException("Order not found");
+        }
+
+        List<String> products = order.getOrderItems().stream()
+                .map(item -> item.getProduct().getTitle())
+                .toList();
+
+        return OrderResponse.builder()
+                .orderNumber(order.getOrderNumber())
+                .totalAmount(order.getTotalAmount())
+                .status(order.getStatus())
+                .createdAt(order.getCreatedAt())
+                .products(products)
+                .build();
     }
 }
