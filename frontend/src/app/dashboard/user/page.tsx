@@ -92,7 +92,8 @@ export default function UserDashboardPage() {
 
   const downloadMutation = useMutation({
     mutationFn: async ({ productId, title }: { productId: number; title: string }) => {
-      const res = await apiClient.download(productId);
+      const { data: downloadLink } = await apiClient.getDownloadLink(productId);
+      const res = await apiClient.downloadFromLink(downloadLink);
       const url = window.URL.createObjectURL(res.data);
       const a = document.createElement("a");
       a.href = url;

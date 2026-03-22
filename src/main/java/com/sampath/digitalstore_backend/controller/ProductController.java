@@ -3,6 +3,9 @@ package com.sampath.digitalstore_backend.controller;
 import com.sampath.digitalstore_backend.dto.product.ProductRequest;
 import com.sampath.digitalstore_backend.dto.product.ProductResponse;
 import com.sampath.digitalstore_backend.dto.product.PurchaseProductResponse;
+import com.sampath.digitalstore_backend.entity.User;
+import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
+import com.sampath.digitalstore_backend.repository.UserRepository;
 import com.sampath.digitalstore_backend.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,11 +21,30 @@ import java.util.List;
 public class ProductController {
 
     private final ProductService productService;
+    private final UserRepository userRepository;
 
     // 🔓 Public browsing
     @GetMapping("/public")
     public ResponseEntity<List<ProductResponse>> getAllPublishedProducts() {
         return ResponseEntity.ok(productService.getAllPublishedProducts());
+    }
+
+    // 🔐 Authenticated listing:
+    // - SELLER: own products (draft + published)
+    // - ADMIN: all products
+    // - USER: published products
+    @GetMapping
+    public ResponseEntity<List<ProductResponse>> getProducts(
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        User user = userRepository.findByEmail(userDetails.getUsername())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        return switch (user.getRole()) {
+            case ADMIN -> ResponseEntity.ok(productService.getAllProducts());
+            case SELLER -> ResponseEntity.ok(productService.getProductsBySeller(user.getId()));
+            default -> ResponseEntity.ok(productService.getAllPublishedProducts());
+        };
     }
 
     // 🔐 Seller creates product (uses email from JWT)

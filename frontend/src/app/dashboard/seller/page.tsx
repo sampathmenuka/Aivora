@@ -100,7 +100,7 @@ export default function SellerDashboardPage() {
     onSuccess: () => {
       invalidate();
       setForm(EMPTY_FORM);
-      setSuccessMsg("Product created successfully!");
+      setSuccessMsg("Product created as draft. Publish it to show in the public products page.");
       setTimeout(() => setSuccessMsg(""), 3000);
       setTab("manage");
     },
