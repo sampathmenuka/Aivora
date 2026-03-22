@@ -14,8 +14,6 @@ import com.sampath.digitalstore_backend.repository.UserRepository;
 import com.sampath.digitalstore_backend.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
-import com.sampath.digitalstore_backend.exception.UnauthorizedException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -53,6 +51,14 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public List<ProductResponse> getAllPublishedProducts() {
         return productRepository.findByIsPublishedTrue()
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<ProductResponse> getAllProducts() {
+        return productRepository.findAll()
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());

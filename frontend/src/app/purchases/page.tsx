@@ -12,7 +12,8 @@ export default function PurchasesPage() {
 
   const downloadMutation = useMutation({
     mutationFn: async ({ productId, title }: { productId: number; title: string }) => {
-      const response = await apiClient.download(productId);
+      const { data: downloadLink } = await apiClient.getDownloadLink(productId);
+      const response = await apiClient.downloadFromLink(downloadLink);
       const blobUrl = window.URL.createObjectURL(response.data);
       const anchor = document.createElement("a");
       anchor.href = blobUrl;

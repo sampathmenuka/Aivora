@@ -10,6 +10,8 @@ public interface ProductService {
 
     List<ProductResponse> getAllPublishedProducts();
 
+    List<ProductResponse> getAllProducts();
+
     List<ProductResponse> getProductsBySeller(Long sellerId);
 
     ProductResponse getProductById(Long productId);

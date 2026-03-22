@@ -36,6 +36,7 @@ export type Product = {
   price: number;
   productType: string;
   thumbnailUrl?: string;
+  isPublished?: boolean;
   published?: boolean;
   previewUrl?: string;
   sellerEmail?: string;
@@ -85,13 +86,14 @@ export type Review = {
 };
 
 export type Order = {
-  id: number;
+  id?: number;
   orderNumber: string;
-  userEmail: string;
+  userEmail?: string;
   status: string;
   totalAmount: number;
   createdAt: string;
   items?: OrderItem[];
+  products?: string[];
 };
 
 export type OrderItem = {
@@ -108,6 +110,20 @@ export type AdminUser = {
   createdAt: string;
 };
 
+function normalizeProduct(product: Product): Product {
+  return {
+    ...product,
+    published: typeof product.published === "boolean" ? product.published : product.isPublished,
+  };
+}
+
+function normalizeOrder(order: Order): Order {
+  return {
+    ...order,
+    id: order.id ?? 0,
+  };
+}
+
 export const apiClient = {
   // ── Auth ────────────────────────────────────────────────
   register(payload: { name: string; email: string; password: string; role?: string }) {
@@ -118,14 +134,28 @@ export const apiClient = {
   },
 
   // ── Products (public) ────────────────────────────────────
-  getPublicProducts() {
-    return api.get<Product[]>("/api/products/public");
+  async getPublicProducts() {
+    const response = await api.get<Product[]>("/api/products/public");
+    return {
+      ...response,
+      data: response.data.map(normalizeProduct),
+    };
+  },
+  async getProducts() {
+    const response = await api.get<Product[]>("/api/products");
+    return {
+      ...response,
+      data: response.data.map(normalizeProduct),
+    };
   },
   getReviews(productId: number) {
     return api.get<Review[]>(`/api/products/${productId}/reviews`);
   },
   addReview(productId: number, payload: { rating: number; comment: string }) {
     return api.post<Review>(`/api/products/${productId}/reviews`, payload);
+  },
+  deleteReview(productId: number) {
+    return api.delete<string>(`/api/products/${productId}/reviews`);
   },
 
   // ── Cart ─────────────────────────────────────────────────
@@ -151,25 +181,37 @@ export const apiClient = {
   createOrder(payload: { productIds: number[] }) {
     return api.post<Order>("/api/orders", payload);
   },
-  getOrders() {
-    return api.get<Order[]>("/api/orders");
+  async getOrders() {
+    const response = await api.get<Order[]>("/api/orders");
+    return {
+      ...response,
+      data: response.data.map(normalizeOrder),
+    };
   },
   getSellerOrders() {
-    return api.get<Order[]>("/api/orders/seller");
+    return apiClient.getOrders();
   },
 
   // ── Purchases ────────────────────────────────────────────
   getPurchases() {
     return api.get<PurchaseProduct[]>("/api/products/my-purchases");
   },
+  getDownloadLink(productId: number) {
+    return api.get<string>(`/api/products/${productId}/download-link`);
+  },
   download(productId: number) {
     return api.get(`/api/downloads/products/${productId}`, {
       responseType: "blob",
     });
   },
+  downloadFromLink(downloadLink: string) {
+    return api.get(downloadLink, {
+      responseType: "blob",
+    });
+  },
 
   // ── Seller products ──────────────────────────────────────
-  createProduct(payload: {
+  async createProduct(payload: {
     title: string;
     description: string;
     price: number;
@@ -177,10 +219,14 @@ export const apiClient = {
     fileUrl: string;
     previewUrl?: string;
   }) {
-    return api.post<Product>("/api/products", payload);
+    const response = await api.post<Product>("/api/products", payload);
+    return {
+      ...response,
+      data: normalizeProduct(response.data),
+    };
   },
   getSellerProducts() {
-    return api.get<Product[]>("/api/products/my-products");
+    return apiClient.getProducts();
   },
   updateProduct(id: number, payload: Partial<{
     title: string;
@@ -195,11 +241,19 @@ export const apiClient = {
   deleteSellerProduct(id: number) {
     return api.delete(`/api/products/${id}`);
   },
-  publishProduct(id: number) {
-    return api.put<Product>(`/api/products/${id}/publish`);
+  async publishProduct(id: number) {
+    const response = await api.put<Product>(`/api/products/${id}/publish`);
+    return {
+      ...response,
+      data: normalizeProduct(response.data),
+    };
   },
-  unpublishProduct(id: number) {
-    return api.put<Product>(`/api/products/${id}/unpublish`);
+  async unpublishProduct(id: number) {
+    const response = await api.put<Product>(`/api/products/${id}/unpublish`);
+    return {
+      ...response,
+      data: normalizeProduct(response.data),
+    };
   },
 
   // ── Admin ─────────────────────────────────────────────────
