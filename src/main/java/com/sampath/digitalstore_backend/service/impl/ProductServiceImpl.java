@@ -81,11 +81,36 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public void deleteProduct(Long productId) {
-        if (!productRepository.existsById(productId)) {
-            throw new ResourceNotFoundException("Product not found");
+    public ProductResponse updateProduct(Long productId, ProductRequest request, String email) {
+        Product product = getOwnedProductOrAdmin(productId, email);
+
+        if (request.getTitle() != null) {
+            product.setTitle(request.getTitle());
         }
-        productRepository.deleteById(productId);
+        if (request.getDescription() != null) {
+            product.setDescription(request.getDescription());
+        }
+        if (request.getPrice() != null) {
+            product.setPrice(request.getPrice());
+        }
+        if (request.getProductType() != null) {
+            product.setProductType(request.getProductType());
+        }
+        if (request.getPreviewUrl() != null) {
+            product.setPreviewUrl(request.getPreviewUrl());
+        }
+        if (request.getFileUrl() != null && !request.getFileUrl().isBlank()) {
+            product.setFileUrl(request.getFileUrl());
+        }
+
+        productRepository.save(product);
+        return mapToResponse(product);
+    }
+
+    @Override
+    public void deleteProduct(Long productId, String email) {
+        Product product = getOwnedProductOrAdmin(productId, email);
+        productRepository.delete(product);
     }
 
     private ProductResponse mapToResponse(Product product) {
@@ -96,8 +121,25 @@ public class ProductServiceImpl implements ProductService {
                 .price(product.getPrice())
                 .productType(product.getProductType())
                 .thumbnailUrl(product.getThumbnailUrl())
+                .previewUrl(product.getPreviewUrl())
+                .sellerEmail(product.getSeller() != null ? product.getSeller().getEmail() : null)
                 .isPublished(product.isPublished())
                 .build();
+    }
+
+    private Product getOwnedProductOrAdmin(Long productId, String email) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        boolean isOwner = product.getSeller().getId().equals(user.getId());
+        boolean isAdmin = user.getRole().name().equals("ADMIN");
+        if (!isOwner && !isAdmin) {
+            throw new UnauthorizedException("You are not allowed to modify this product");
+        }
+        return product;
     }
 
     @Override
