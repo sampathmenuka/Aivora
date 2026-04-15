@@ -26,7 +26,7 @@ const ADMIN_NAV = [
 ];
 
 export default function Navbar() {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, hydrated } = useAuth();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -75,7 +75,7 @@ export default function Navbar() {
           <ThemeToggle />
 
           {/* Role badge */}
-          {isAuthenticated && user && (
+          {hydrated && isAuthenticated && user && (
             <span
               className={`hidden md:inline-flex badge ${
                 user.role === "ADMIN"
@@ -89,23 +89,25 @@ export default function Navbar() {
             </span>
           )}
 
-          {!isAuthenticated ? (
-            <div className="hidden md:flex items-center gap-2">
-              <Link href="/auth/login" className="btn-secondary btn btn-sm">
-                Sign In
-              </Link>
-              <Link href="/auth/register" className="btn-primary btn btn-sm">
-                Sign Up
-              </Link>
-            </div>
-          ) : (
-            <div className="hidden md:flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">{user?.email}</span>
-              <button onClick={logout} className="btn-secondary btn btn-sm">
-                Sign Out
-              </button>
-            </div>
-          )}
+          <div className="hidden md:flex items-center gap-2 min-w-[140px] justify-end">
+            {!hydrated ? null : !isAuthenticated ? (
+              <>
+                <Link href="/auth/login" className="btn-secondary btn btn-sm">
+                  Sign In
+                </Link>
+                <Link href="/auth/register" className="btn-primary btn btn-sm">
+                  Sign Up
+                </Link>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-muted-foreground truncate max-w-[100px]">{user?.email}</span>
+                <button onClick={logout} className="btn-secondary btn btn-sm">
+                  Sign Out
+                </button>
+              </>
+            )}
+          </div>
 
           {/* Mobile hamburger */}
           <button
@@ -140,7 +142,7 @@ export default function Navbar() {
             </Link>
           ))}
           <div className="pt-2 border-t border-border flex flex-col gap-2">
-            {!isAuthenticated ? (
+            {!hydrated ? null : !isAuthenticated ? (
               <>
                 <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="btn-secondary btn">
                   Sign In
