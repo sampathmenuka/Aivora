@@ -20,11 +20,13 @@ function dashboardFor(role: string): string {
 export function useAuth() {
   const router = useRouter();
   const [hydrated, setHydrated] = useState(false);
-  const [user, setUser] = useState(authStore.getUser());
+  const [user, setUser] = useState<{email: string; role: string} | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
     setHydrated(true);
     setUser(authStore.getUser());
+    setIsAuthenticated(Boolean(authStore.getToken()));
   }, []);
 
   const loginMutation = useMutation({
@@ -32,6 +34,7 @@ export function useAuth() {
     onSuccess: ({ data }) => {
       authStore.setAuth(data.token, data.email, data.role);
       setUser({ email: data.email, role: data.role });
+      setIsAuthenticated(true);
       router.push(dashboardFor(data.role));
     },
   });
@@ -41,6 +44,7 @@ export function useAuth() {
     onSuccess: ({ data }) => {
       authStore.setAuth(data.token, data.email, data.role);
       setUser({ email: data.email, role: data.role });
+      setIsAuthenticated(true);
       router.push(dashboardFor(data.role));
     },
   });
@@ -48,10 +52,9 @@ export function useAuth() {
   const logout = () => {
     authStore.clear();
     setUser(null);
+    setIsAuthenticated(false);
     router.push("/auth/login");
   };
-
-  const isAuthenticated = Boolean(authStore.getToken());
 
   return {
     user,
