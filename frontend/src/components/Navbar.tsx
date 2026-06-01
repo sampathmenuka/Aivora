@@ -9,6 +9,7 @@ import ThemeToggle from "./ThemeToggle";
 const NAV_LINKS = [
   { href: "/", label: "Home" },
   { href: "/products", label: "Products" },
+  { href: "/faq", label: "FAQ" },
 ];
 
 const USER_NAV = [
@@ -44,7 +45,7 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-card/90 backdrop-blur-md">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      <nav className="flex w-full items-center justify-between px-4 py-3 sm:px-6 lg:px-10">
         {/* Brand */}
         <Link href="/" className="flex items-center gap-2 font-bold text-lg">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
