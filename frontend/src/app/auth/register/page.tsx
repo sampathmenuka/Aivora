@@ -2,20 +2,35 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
-import { AxiosError } from "axios";
+import { AlertCircle, Check, Lock, Mail, ShoppingBag, Store, UserRound } from "lucide-react";
+import AuthShell from "@/components/AuthShell";
+import { Spinner } from "@/components/ui";
 import { useAuth } from "@/hooks/useAuth";
+import { cn, getApiErrorMessage } from "@/lib/format";
 
 const ROLES = [
-  { value: "USER", label: "Customer", description: "Browse, purchase and download digital products" },
-  { value: "SELLER", label: "Seller", description: "List and sell your own digital products" },
+  { value: "USER", label: "I want to buy", description: "Browse, purchase and download", icon: ShoppingBag },
+  { value: "SELLER", label: "I want to sell", description: "Publish and sell my products", icon: Store },
 ] as const;
 
 type Role = (typeof ROLES)[number]["value"];
 
-function getApiErrorMessage(error: unknown, fallback: string): string {
-  const axiosError = error as AxiosError<{ message?: string; error?: string }>;
-  return axiosError.response?.data?.message ?? axiosError.response?.data?.error ?? fallback;
+function passwordStrength(password: string) {
+  let score = 0;
+  if (password.length >= 6) score++;
+  if (password.length >= 10) score++;
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+  if (/\d/.test(password) || /[^A-Za-z0-9]/.test(password)) score++;
+  return score;
 }
+
+const STRENGTH = [
+  { label: "Too short", color: "bg-danger" },
+  { label: "Weak", color: "bg-danger" },
+  { label: "Fair", color: "bg-warning" },
+  { label: "Good", color: "bg-success" },
+  { label: "Strong", color: "bg-success" },
+];
 
 export default function RegisterPage() {
   const { register, isRegistering, registerError } = useAuth();
@@ -26,144 +41,114 @@ export default function RegisterPage() {
   const [role, setRole] = useState<Role>("USER");
   const [validationError, setValidationError] = useState("");
 
+  const strength = passwordStrength(password);
+
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
-    if (!name.trim()) {
-      setValidationError("Name is required.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setValidationError("Passwords do not match.");
-      return;
-    }
-    if (password.length < 6) {
-      setValidationError("Password must be at least 6 characters.");
-      return;
-    }
+    if (!name.trim()) return setValidationError("Name is required.");
+    if (password.length < 6) return setValidationError("Password must be at least 6 characters.");
+    if (password !== confirmPassword) return setValidationError("Passwords do not match.");
+
     setValidationError("");
-    register({
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password,
-      role,
-    });
+    register({ name: name.trim(), email: email.trim().toLowerCase(), password, role });
   };
 
-  const backendErrorMessage = registerError
-    ? getApiErrorMessage(registerError, "Registration failed. Please try again.")
-    : "";
+  const errorMessage =
+    validationError || (registerError ? getApiErrorMessage(registerError, "Registration failed. Please try again.") : "");
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        {/* Brand */}
-        <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground text-xl font-bold shadow-md">
-            DS
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">Create your account</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Join Digital Store today</p>
-        </div>
-
-        {/* Role selection */}
-        <div className="mb-6">
-          <p className="form-label mb-2">I want to join as</p>
-          <div className="grid grid-cols-2 gap-3">
-            {ROLES.map((r) => (
+    <AuthShell
+      title="Create your account"
+      subtitle="Join in seconds. No credit card required."
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link href="/auth/login" className="font-semibold text-primary hover:underline">
+            Sign in
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={onSubmit} className="space-y-5">
+        <fieldset className="grid grid-cols-2 gap-3">
+          <legend className="sr-only">Account type</legend>
+          {ROLES.map((r) => {
+            const selected = role === r.value;
+            return (
               <button
                 key={r.value}
                 type="button"
                 onClick={() => setRole(r.value)}
-                className={`rounded-xl border-2 p-3 text-left transition-all ${
-                  role === r.value
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-muted-foreground/50"
-                }`}
+                aria-pressed={selected}
+                className={cn(
+                  "relative rounded-2xl border-2 p-4 text-left transition-all",
+                  selected ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-border hover:border-foreground/20",
+                )}
               >
+                {selected && (
+                  <span className="absolute right-3 top-3 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-white">
+                    <Check className="h-3 w-3" />
+                  </span>
+                )}
+                <r.icon className={cn("mb-3 h-5 w-5", selected ? "text-primary" : "text-muted-foreground")} />
                 <p className="text-sm font-semibold">{r.label}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground leading-snug">{r.description}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">{r.description}</p>
               </button>
-            ))}
-          </div>
+            );
+          })}
+        </fieldset>
+
+        <Field id="name" label="Full name" icon={UserRound}>
+          <input id="name" className="input h-12 pl-10" placeholder="Jane Doe" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" required />
+        </Field>
+
+        <Field id="email" label="Email" icon={Mail}>
+          <input id="email" className="input h-12 pl-10" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+        </Field>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field id="password" label="Password" icon={Lock}>
+            <input id="password" className="input h-12 pl-10" type="password" placeholder="Min. 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" required />
+          </Field>
+          <Field id="confirm" label="Confirm password" icon={Lock}>
+            <input id="confirm" className="input h-12 pl-10" type="password" placeholder="Repeat password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" required />
+          </Field>
         </div>
 
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div className="form-group">
-            <label className="form-label" htmlFor="name">Full name</label>
-            <input
-              id="name"
-              className="input"
-              type="text"
-              placeholder="John Doe"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoComplete="name"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="email">Email address</label>
-            <input
-              id="email"
-              className="input"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="password">Password</label>
-            <input
-              id="password"
-              className="input"
-              type="password"
-              placeholder="Min. 6 characters"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label" htmlFor="confirm">Confirm password</label>
-            <input
-              id="confirm"
-              className="input"
-              type="password"
-              placeholder="Re-enter password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-              required
-            />
-          </div>
-
-          {(validationError || registerError) && (
-            <div className="alert-error">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              {validationError || backendErrorMessage}
+        {password && (
+          <div className="space-y-1.5">
+            <div className="flex gap-1.5">
+              {[0, 1, 2, 3].map((i) => (
+                <span key={i} className={cn("h-1.5 flex-1 rounded-full transition-colors", i < strength ? STRENGTH[strength].color : "bg-muted")} />
+              ))}
             </div>
-          )}
+            <p className="text-xs text-muted-foreground">Password strength: {STRENGTH[strength].label}</p>
+          </div>
+        )}
 
-          <button type="submit" className="btn-primary btn-full btn-lg mt-2" disabled={isRegistering}>
-            {isRegistering ? (
-              <><svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Creating account...</>
-            ) : `Create ${role === "SELLER" ? "Seller" : ""} Account`}
-          </button>
-        </form>
+        {errorMessage && (
+          <div className="alert-error" role="alert">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {errorMessage}
+          </div>
+        )}
 
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/auth/login" className="font-medium text-primary hover:underline">
-            Sign in
-          </Link>
-        </p>
+        <button type="submit" className="btn-primary btn-lg btn-full" disabled={isRegistering}>
+          {isRegistering && <Spinner />}
+          {isRegistering ? "Creating account…" : role === "SELLER" ? "Create seller account" : "Create account"}
+        </button>
+      </form>
+    </AuthShell>
+  );
+}
+
+function Field({ id, label, icon: Icon, children }: { id: string; label: string; icon: typeof Mail; children: React.ReactNode }) {
+  return (
+    <div className="form-group">
+      <label className="form-label" htmlFor={id}>{label}</label>
+      <div className="relative">
+        <Icon className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        {children}
       </div>
     </div>
   );
