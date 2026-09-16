@@ -1,95 +1,129 @@
 "use client";
 
-import { useQuery, useMutation } from "@tanstack/react-query";
+import Link from "next/link";
+import { useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { ArrowRight, Download, Library, RefreshCw, Search } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { ProductCover } from "@/components/ProductCard";
+import { EmptyState, PageHeader, Skeleton, Spinner } from "@/components/ui";
 import { apiClient } from "@/lib/api";
+import { downloadPurchase } from "@/lib/download";
+import { getApiErrorMessage } from "@/lib/format";
+import { productTypeMeta } from "@/lib/product-types";
 
 export default function PurchasesPage() {
-  const { data, isLoading, refetch } = useQuery({
+  const [search, setSearch] = useState("");
+
+  const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ["purchases"],
     queryFn: async () => (await apiClient.getPurchases()).data,
   });
 
+  const productsQuery = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => (await apiClient.getPublicProducts()).data,
+  });
+  const productById = new Map((productsQuery.data ?? []).map((p) => [p.id, p]));
+
   const downloadMutation = useMutation({
-    mutationFn: async ({ productId, title }: { productId: number; title: string }) => {
-      const { data: downloadLink } = await apiClient.getDownloadLink(productId);
-      const response = await apiClient.downloadFromLink(downloadLink);
-      const blobUrl = window.URL.createObjectURL(response.data);
-      const anchor = document.createElement("a");
-      anchor.href = blobUrl;
-      anchor.download = `${title}.bin`;
-      anchor.click();
-      window.URL.revokeObjectURL(blobUrl);
-    },
+    mutationFn: ({ productId, title }: { productId: number; title: string }) => downloadPurchase(productId, title),
   });
 
-  const TYPE_ICON: Record<string, string> = {
-    EBOOK: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253",
-    COURSE: "M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z",
-    DIGITAL_FILE: "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z",
-  };
+  const purchases = (data ?? []).filter((item) => item.title.toLowerCase().includes(search.trim().toLowerCase()));
 
   return (
     <ProtectedRoute>
-      <main className="container-page max-w-3xl">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-1">My Purchases</h1>
-            <p className="text-muted-foreground">{data?.length ?? 0} purchased item{(data?.length ?? 0) !== 1 ? "s" : ""}</p>
-          </div>
-          <button onClick={() => refetch()} className="btn-secondary btn btn-sm">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Refresh
-          </button>
-        </div>
+      <main className="container-page">
+        <PageHeader
+          eyebrow="Library"
+          title="My library"
+          description="Everything you've bought, ready to download any time."
+          actions={
+            <button onClick={() => refetch()} className="btn-secondary btn-sm" disabled={isRefetching}>
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefetching ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          }
+        />
 
-        {isLoading && (
-          <div className="flex justify-center py-12">
-            <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
+        {downloadMutation.isError && (
+          <div className="alert-error mb-6">{getApiErrorMessage(downloadMutation.error, "Download failed. Please try again.")}</div>
+        )}
+
+        {(data?.length ?? 0) > 3 && (
+          <div className="relative mb-6 max-w-sm">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              className="input pl-10"
+              type="search"
+              placeholder="Search your library…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
         )}
 
-        {!isLoading && (!data || data.length === 0) && (
-          <div className="empty-state">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            <p>No purchases yet.</p>
+        {isLoading ? (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-72 w-full rounded-2xl" />)}
+          </div>
+        ) : !data || data.length === 0 ? (
+          <EmptyState
+            icon={Library}
+            title="Your library is empty"
+            description="Products you buy will show up here, ready to download. Recent payments can take a moment to appear."
+            action={
+              <Link href="/products" className="btn-primary">
+                Explore products
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            }
+          />
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {purchases.map((item) => {
+              const product = productById.get(item.productId) ?? {
+                id: item.productId,
+                title: item.title,
+                description: "",
+                price: 0,
+                productType: item.productType,
+              };
+              const meta = productTypeMeta(item.productType);
+              const downloading = downloadMutation.isPending && downloadMutation.variables?.productId === item.productId;
+
+              return (
+                <article key={item.productId} className="card card-hover group flex flex-col overflow-hidden p-0">
+                  <ProductCover product={product} className="aspect-[16/9] w-full" />
+                  <div className="flex flex-1 flex-col gap-4 p-5">
+                    <div className="space-y-1.5">
+                      <span className={meta.badge}>
+                        <meta.icon className="h-3 w-3" />
+                        {meta.label}
+                      </span>
+                      <h3 className="line-clamp-2 font-display font-bold">{item.title}</h3>
+                    </div>
+                    <div className="mt-auto flex gap-2">
+                      <button
+                        className="btn-primary flex-1"
+                        onClick={() => downloadMutation.mutate({ productId: item.productId, title: item.title })}
+                        disabled={downloading}
+                      >
+                        {downloading ? <Spinner /> : <Download className="h-4 w-4" />}
+                        {downloading ? "Preparing…" : "Download"}
+                      </button>
+                      <Link href={`/products/${item.productId}`} className="btn-secondary" aria-label={`View ${item.title}`}>
+                        View
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         )}
-
-        <div className="space-y-3">
-          {data?.map((item) => (
-            <div key={item.productId} className="card flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={TYPE_ICON[item.productType] ?? TYPE_ICON.DIGITAL_FILE} />
-                </svg>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold truncate">{item.title}</p>
-                <span className="badge-blue text-xs">{item.productType}</span>
-              </div>
-              <button
-                className="btn-primary btn btn-sm shrink-0"
-                onClick={() => downloadMutation.mutate({ productId: item.productId, title: item.title })}
-                disabled={downloadMutation.isPending}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                Download
-              </button>
-            </div>
-          ))}
-        </div>
       </main>
     </ProtectedRoute>
   );
 }
-
