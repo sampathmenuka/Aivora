@@ -19,7 +19,9 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error?.response?.status === 401) {
+    // A 401 from login/register just means bad credentials: let the form show the error
+    const isAuthRequest = String(error?.config?.url ?? "").startsWith("/api/auth/");
+    if (error?.response?.status === 401 && !isAuthRequest) {
       authStore.clear();
       if (typeof window !== "undefined") {
         window.location.href = "/auth/login";
