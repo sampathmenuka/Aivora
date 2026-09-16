@@ -2,136 +2,177 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
+import { ArrowUpRight, LogOut, LucideIcon, Menu, X } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { cn, initials } from "@/lib/format";
 import ThemeToggle from "./ThemeToggle";
+import { Logo } from "./ui";
 
 export type NavItem = {
-  href: string;
   label: string;
-  icon: ReactNode;
+  icon: LucideIcon;
   section?: string;
+  // Either a page link, or a tab on the current dashboard
+  href?: string;
+  tab?: string;
+  count?: number;
 };
 
 type Props = {
   title: string;
+  subtitle?: string;
   navItems: NavItem[];
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
+  actions?: ReactNode;
   children: ReactNode;
   badgeColor?: "blue" | "yellow" | "red";
 };
 
-export default function DashboardLayout({ title, navItems, children, badgeColor = "blue" }: Props) {
+const BADGES = { blue: "badge-blue", yellow: "badge-yellow", red: "badge-red" };
+
+export default function DashboardLayout({
+  title,
+  subtitle,
+  navItems,
+  activeTab,
+  onTabChange,
+  actions,
+  children,
+  badgeColor = "blue",
+}: Props) {
   const pathname = usePathname();
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const sections = Array.from(new Set(navItems.map((i) => i.section ?? ""))).filter(Boolean);
-  const hasSection = sections.length > 0;
+  useEffect(() => {
+    document.body.style.overflow = sidebarOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [sidebarOpen]);
 
-  const badgeClass = badgeColor === "red" ? "badge-red" : badgeColor === "yellow" ? "badge-yellow" : "badge-blue";
+  const sections = Array.from(new Set(navItems.map((item) => item.section ?? "")));
 
-  const renderNavItems = (items: NavItem[]) =>
-    items.map((item) => (
-      <Link
-        key={item.href}
-        href={item.href}
-        onClick={() => setSidebarOpen(false)}
-        className={`sidebar-nav-item${pathname === item.href ? " active" : ""}`}
-      >
-        <span className="h-4 w-4 shrink-0">{item.icon}</span>
-        {item.label}
-      </Link>
-    ));
+  const isActive = (item: NavItem) => (item.tab ? item.tab === activeTab : item.href === pathname);
 
-  const sidebarContent = (
-    <>
-      {/* Brand */}
-      <div className="flex items-center gap-2.5 px-4 py-5 border-b border-[hsl(var(--sidebar-border))]">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[hsl(var(--sidebar-active))] text-white text-xs font-bold shrink-0">
-          DS
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-[hsl(var(--sidebar-foreground))]">Digital Store</p>
-          <span className={badgeClass + " mt-0.5 text-[10px]"}>{user?.role}</span>
-        </div>
-      </div>
+  const renderItem = (item: NavItem) => {
+    const Icon = item.icon;
+    const active = isActive(item);
+    const className = cn(
+      "group relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all",
+      active ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+    );
+    const content = (
+      <>
+        {active && <span className="absolute left-0 top-1/2 h-5 w-1 -translate-x-3 -translate-y-1/2 rounded-r-full bg-primary" />}
+        <Icon className="h-[18px] w-[18px] shrink-0" />
+        <span className="flex-1 text-left">{item.label}</span>
+        {item.count !== undefined && item.count > 0 && (
+          <span className={cn("rounded-full px-2 py-px text-[11px] font-semibold", active ? "bg-primary/15" : "bg-muted")}>
+            {item.count}
+          </span>
+        )}
+        {item.href && !item.tab && <ArrowUpRight className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-60" />}
+      </>
+    );
 
-      {/* Nav */}
-      <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-        {hasSection
-          ? sections.map((section) => (
-              <div key={section} className="mb-2">
-                <p className="sidebar-section-title">{section}</p>
-                {renderNavItems(navItems.filter((i) => i.section === section))}
-              </div>
-            ))
-          : renderNavItems(navItems)}
-        {/* Ungrouped */}
-        {hasSection && renderNavItems(navItems.filter((i) => !i.section))}
-      </nav>
-
-      {/* Footer */}
-      <div className="p-3 border-t border-[hsl(var(--sidebar-border))]">
-        <div className="flex items-center gap-2 rounded-lg p-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[hsl(var(--sidebar-muted))] text-[hsl(var(--sidebar-foreground))] text-xs font-semibold shrink-0">
-            {user?.email?.[0]?.toUpperCase() ?? "U"}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-[hsl(var(--sidebar-foreground))] truncate">{user?.email}</p>
-          </div>
-        </div>
+    if (item.tab) {
+      return (
         <button
-          onClick={logout}
-          className="mt-1 w-full sidebar-nav-item text-red-400 hover:bg-red-500/10 hover:text-red-300"
+          key={item.label}
+          className={className}
+          onClick={() => {
+            onTabChange?.(item.tab!);
+            setSidebarOpen(false);
+          }}
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Sign Out
+          {content}
+        </button>
+      );
+    }
+    return (
+      <Link key={item.label} href={item.href ?? "/"} className={className} onClick={() => setSidebarOpen(false)}>
+        {content}
+      </Link>
+    );
+  };
+
+  const sidebar = (
+    <div className="flex h-full flex-col">
+      <div className="flex h-16 items-center justify-between px-5">
+        <Logo />
+        <button className="btn-icon btn-ghost lg:hidden" onClick={() => setSidebarOpen(false)} aria-label="Close sidebar">
+          <X className="h-5 w-5" />
         </button>
       </div>
-    </>
+
+      <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-4">
+        {sections.map((section) => (
+          <div key={section || "main"} className="space-y-1">
+            {section && (
+              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">{section}</p>
+            )}
+            {navItems.filter((item) => (item.section ?? "") === section).map(renderItem)}
+          </div>
+        ))}
+      </nav>
+
+      <div className="border-t border-border p-4">
+        <div className="flex items-center gap-3 rounded-2xl bg-muted/60 p-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white">
+            {initials(user?.email)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">{user?.email}</p>
+            <span className={cn(BADGES[badgeColor], "mt-0.5 text-[10px]")}>{user?.role}</span>
+          </div>
+          <button onClick={logout} className="btn-icon btn-ghost h-8 w-8 hover:text-danger" aria-label="Sign out" title="Sign out">
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 
   return (
-    <div className="dashboard-root">
+    <div className="min-h-screen bg-muted/30">
       {/* Desktop sidebar */}
-      <aside className="sidebar hidden md:flex flex-col">{sidebarContent}</aside>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border bg-card lg:block">{sidebar}</aside>
 
-      {/* Mobile sidebar overlay */}
+      {/* Mobile drawer */}
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 md:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setSidebarOpen(false)} />
-          <aside className="relative flex w-64 flex-col h-full bg-[hsl(var(--sidebar))]">
-            {sidebarContent}
-          </aside>
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 animate-fade-in bg-black/40 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
+          <aside className="relative h-full w-72 animate-slide-in-left border-r border-border bg-card shadow-lift">{sidebar}</aside>
         </div>
       )}
 
-      {/* Main area */}
-      <div className="flex-1 flex flex-col min-h-screen md:ml-64">
-        {/* Topbar */}
-        <header className="dashboard-topbar">
-          <div className="flex items-center gap-3">
-            <button
-              className="md:hidden btn-ghost btn p-1"
-              onClick={() => setSidebarOpen(true)}
-              aria-label="Open sidebar"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-            <h1 className="text-base font-semibold">{title}</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <span className="hidden sm:block text-sm text-muted-foreground">{user?.email}</span>
+      <div className="flex min-h-screen flex-col lg:pl-72">
+        <header className="glass sticky top-0 z-20 border-b">
+          <div className="flex h-16 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            <div className="flex min-w-0 items-center gap-3">
+              <button className="btn-icon btn-ghost lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open sidebar">
+                <Menu className="h-5 w-5" />
+              </button>
+              <div className="min-w-0">
+                <h1 className="truncate font-display text-base font-bold sm:text-lg">{title}</h1>
+                {subtitle && <p className="hidden truncate text-xs text-muted-foreground sm:block">{subtitle}</p>}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              {actions}
+              <ThemeToggle />
+              <Link href="/" className="btn-secondary btn-sm hidden sm:inline-flex">
+                View store
+                <ArrowUpRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </div>
         </header>
 
-        {/* Page content */}
-        <main className="dashboard-body">{children}</main>
+        <main className="mx-auto w-full min-w-0 max-w-7xl flex-1 animate-fade-up p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );
