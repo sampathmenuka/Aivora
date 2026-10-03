@@ -165,6 +165,9 @@ export const apiClient = {
   addToCart(payload: { productId: number; quantity?: number }) {
     return api.post<Cart>("/api/cart/items", payload);
   },
+  updateCartItem(productId: number, quantity: number) {
+    return api.put<Cart>(`/api/cart/items/${productId}`, { quantity });
+  },
   removeFromCart(productId: number) {
     return api.delete<Cart>(`/api/cart/items/${productId}`);
   },
@@ -173,13 +176,18 @@ export const apiClient = {
   },
 
   // ── Payments ─────────────────────────────────────────────
-  createPaymentIntent(payload: { productIds: number[] }) {
+  // Without an orderNumber the backend creates a PENDING order from the cart
+  createPaymentIntent(payload: { orderNumber?: string } = {}) {
     return api.post<PaymentIntentResponse>("/api/payments/create-intent", payload);
   },
 
   // ── Orders ───────────────────────────────────────────────
-  createOrder(payload: { productIds: number[] }) {
-    return api.post<Order>("/api/orders", payload);
+  // Creates a PENDING order from the cart (no payment). Checkout uses createPaymentIntent instead.
+  createOrder() {
+    return api.post<Order>("/api/orders");
+  },
+  getOrder(orderNumber: string) {
+    return api.get<Order>(`/api/orders/${orderNumber}`);
   },
   async getOrders() {
     const response = await api.get<Order[]>("/api/orders");
