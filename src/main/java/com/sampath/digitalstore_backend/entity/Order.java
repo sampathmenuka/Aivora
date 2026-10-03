@@ -3,7 +3,9 @@ package com.sampath.digitalstore_backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -26,17 +28,18 @@ public class Order {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // We will create OrderItem entity next
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
-    private List<OrderItem> orderItems;
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<OrderItem> orderItems = new ArrayList<>();
 
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalAmount;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Double totalAmount;
+    private OrderStatus status;
 
-    @Column(nullable = false)
-    private String status;
-    // PENDING, PAID, FAILED, CANCELLED
-
+    @Column(unique = true)
     private String paymentIntentId; // Stripe payment intent ID
     private String clientSecret;
 
@@ -46,5 +49,10 @@ public class Order {
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
+    }
+
+    public void addItem(OrderItem item) {
+        item.setOrder(this);
+        orderItems.add(item);
     }
 }

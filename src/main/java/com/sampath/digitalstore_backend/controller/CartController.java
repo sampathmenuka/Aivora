@@ -2,7 +2,9 @@ package com.sampath.digitalstore_backend.controller;
 
 import com.sampath.digitalstore_backend.dto.cart.AddToCartRequest;
 import com.sampath.digitalstore_backend.dto.cart.CartResponse;
+import com.sampath.digitalstore_backend.dto.cart.UpdateCartItemRequest;
 import com.sampath.digitalstore_backend.service.CartService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,10 +25,19 @@ public class CartController {
 
     @PostMapping("/items")
     public ResponseEntity<CartResponse> addToCart(
-            @RequestBody AddToCartRequest request,
+            @Valid @RequestBody AddToCartRequest request,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         return ResponseEntity.ok(cartService.addToCart(request, userDetails.getUsername()));
+    }
+
+    @PutMapping("/items/{productId}")
+    public ResponseEntity<CartResponse> updateItemQuantity(
+            @PathVariable Long productId,
+            @Valid @RequestBody UpdateCartItemRequest request,
+            @AuthenticationPrincipal UserDetails userDetails
+    ) {
+        return ResponseEntity.ok(cartService.updateItemQuantity(productId, request, userDetails.getUsername()));
     }
 
     @DeleteMapping("/items/{productId}")

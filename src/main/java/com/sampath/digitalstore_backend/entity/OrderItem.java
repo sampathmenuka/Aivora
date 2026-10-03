@@ -3,6 +3,8 @@ package com.sampath.digitalstore_backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(name = "order_items")
 @Getter
@@ -27,14 +29,16 @@ public class OrderItem {
     private Product product;
 
     // Price snapshot at purchase time
-    @Column(nullable = false)
-    private Double priceAtPurchase;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal priceAtPurchase;
 
     @Column(nullable = false)
     private Integer quantity;
 
     // Optional future: commission support
-    private Double platformFee;
+    @Column(precision = 12, scale = 2)
+    private BigDecimal platformFee;
 
-    private Double sellerEarnings;
+    @Column(precision = 12, scale = 2)
+    private BigDecimal sellerEarnings;
 }

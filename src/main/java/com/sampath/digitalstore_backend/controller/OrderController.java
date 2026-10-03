@@ -1,10 +1,6 @@
 package com.sampath.digitalstore_backend.controller;
 
-import com.sampath.digitalstore_backend.dto.order.OrderRequest;
 import com.sampath.digitalstore_backend.dto.order.OrderResponse;
-import com.sampath.digitalstore_backend.entity.User;
-import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
-import com.sampath.digitalstore_backend.repository.UserRepository;
 import com.sampath.digitalstore_backend.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,37 +16,23 @@ import java.util.List;
 public class OrderController {
 
     private final OrderService orderService;
-    private final UserRepository userRepository;
 
+    // Creates a PENDING order from the current user's cart
     @PostMapping
-    public ResponseEntity<OrderResponse>
-    createOrder(
-            @RequestBody OrderRequest request,
-            @AuthenticationPrincipal UserDetails userDetails
-    ) {
-
-        String email = userDetails.getUsername();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        return ResponseEntity.ok(
-                orderService.createOrder(request, user.getId())
-        );
+    public ResponseEntity<OrderResponse> createOrder(@AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(orderService.createOrder(userDetails.getUsername()));
     }
 
     @GetMapping
-    public ResponseEntity<List<OrderResponse>> getMyOrders(
+    public ResponseEntity<List<OrderResponse>> getMyOrders(@AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(orderService.getUserOrders(userDetails.getUsername()));
+    }
+
+    @GetMapping("/{orderNumber}")
+    public ResponseEntity<OrderResponse> getMyOrder(
+            @PathVariable String orderNumber,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
-
-        String email = userDetails.getUsername();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        return ResponseEntity.ok(
-                orderService.getUserOrders(user.getId())
-        );
+        return ResponseEntity.ok(orderService.getOrderByOrderNumber(orderNumber, userDetails.getUsername()));
     }
 }

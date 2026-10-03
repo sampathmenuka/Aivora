@@ -4,6 +4,7 @@ import com.sampath.digitalstore_backend.dto.product.ProductRequest;
 import com.sampath.digitalstore_backend.dto.product.ProductResponse;
 import com.sampath.digitalstore_backend.dto.product.PurchaseProductResponse;
 import com.sampath.digitalstore_backend.entity.Order;
+import com.sampath.digitalstore_backend.entity.OrderStatus;
 import com.sampath.digitalstore_backend.entity.Product;
 import com.sampath.digitalstore_backend.entity.User;
 import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
@@ -210,7 +211,7 @@ public class ProductServiceImpl implements ProductService {
 
         List<Order> paidOrders = orderRepository.findByUserId(user.getId())
                 .stream()
-                .filter(o -> "PAID".equals(o.getStatus()))
+                .filter(o -> o.getStatus() == OrderStatus.PAID)
                 .toList();
 
         return paidOrders.stream()

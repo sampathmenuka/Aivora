@@ -3,6 +3,8 @@ package com.sampath.digitalstore_backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Entity
 @Table(
         name = "cart_items",
@@ -31,6 +33,6 @@ public class CartItem {
     private Integer quantity;
 
     // price snapshot at the time added to cart (optional but useful)
-    @Column(nullable = false)
-    private Double priceSnapshot;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal priceSnapshot;
 }

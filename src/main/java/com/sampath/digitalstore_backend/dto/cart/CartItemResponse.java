@@ -2,6 +2,8 @@ package com.sampath.digitalstore_backend.dto.cart;
 
 import lombok.*;
 
+import java.math.BigDecimal;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -10,7 +12,7 @@ import lombok.*;
 public class CartItemResponse {
     private Long productId;
     private String title;
-    private Double price;
+    private BigDecimal price;
     private Integer quantity;
-    private Double lineTotal;
+    private BigDecimal lineTotal;
 }

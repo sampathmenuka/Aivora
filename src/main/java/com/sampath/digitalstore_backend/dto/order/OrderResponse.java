@@ -2,6 +2,7 @@ package com.sampath.digitalstore_backend.dto.order;
 
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -13,7 +14,7 @@ import java.util.List;
 public class OrderResponse {
 
     private String orderNumber;
-    private Double totalAmount;
+    private BigDecimal totalAmount;
     private String status;
     private LocalDateTime createdAt;
     private List<String> products;

@@ -16,9 +16,10 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
+    // Body is optional: without an orderNumber, a new order is created from the cart
     @PostMapping("/create-intent")
     public ResponseEntity<CreatePaymentIntentResponse> createIntent(
-            @RequestBody CreatePaymentIntentRequest request,
+            @RequestBody(required = false) CreatePaymentIntentRequest request,
             @AuthenticationPrincipal UserDetails userDetails
     ) {
         return ResponseEntity.ok(paymentService.createPaymentIntent(request, userDetails.getUsername()));
