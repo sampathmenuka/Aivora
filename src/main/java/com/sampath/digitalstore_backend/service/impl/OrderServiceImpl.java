@@ -1,114 +1,124 @@
 package com.sampath.digitalstore_backend.service.impl;
 
-import com.sampath.digitalstore_backend.dto.order.OrderRequest;
 import com.sampath.digitalstore_backend.dto.order.OrderResponse;
 import com.sampath.digitalstore_backend.entity.*;
 import com.sampath.digitalstore_backend.exception.BadRequestException;
 import com.sampath.digitalstore_backend.exception.ResourceNotFoundException;
+import com.sampath.digitalstore_backend.repository.CartRepository;
 import com.sampath.digitalstore_backend.repository.OrderRepository;
-import com.sampath.digitalstore_backend.repository.ProductRepository;
 import com.sampath.digitalstore_backend.repository.UserRepository;
 import com.sampath.digitalstore_backend.service.OrderService;
+import com.sampath.digitalstore_backend.util.Constants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
-    private final ProductRepository productRepository;
+    private final CartRepository cartRepository;
     private final UserRepository userRepository;
 
-    @Override
-    public OrderResponse createOrder(OrderRequest request, Long userId) {
-
-        User user = userRepository.findById(userId)
+    private User getUser(String email) {
+        return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
 
-        List<Product> products = productRepository.findAllById(request.getProductIds());
+    @Transactional
+    @Override
+    public OrderResponse createOrder(String email) {
+        return toResponse(createPendingOrderFromCart(email));
+    }
 
-        if (products.isEmpty()) {
-            throw new BadRequestException("No products selected");
+    // Snapshots the cart into a PENDING order. The cart is cleared only after payment succeeds.
+    @Transactional
+    @Override
+    public Order createPendingOrderFromCart(String email) {
+
+        User user = getUser(email);
+
+        Cart cart = cartRepository.findByUserId(user.getId())
+                .filter(c -> !c.getItems().isEmpty())
+                .orElseThrow(() -> new BadRequestException("Your cart is empty"));
+
+        List<String> unavailable = cart.getItems().stream()
+                .map(CartItem::getProduct)
+                .filter(p -> !p.isPublished())
+                .map(Product::getTitle)
+                .toList();
+        if (!unavailable.isEmpty()) {
+            throw new BadRequestException("These products are no longer available: " + String.join(", ", unavailable));
         }
 
-        Order order = new Order();
-        order.setOrderNumber(UUID.randomUUID().toString());
-        order.setUser(user);
-        order.setStatus("PENDING");
+        Order order = Order.builder()
+                .orderNumber(UUID.randomUUID().toString())
+                .user(user)
+                .status(OrderStatus.PENDING)
+                .build();
 
-        List<OrderItem> orderItems = products.stream().map(product -> {
+        cart.getItems().forEach(ci -> order.addItem(toOrderItem(ci)));
 
-            OrderItem item = new OrderItem();
-            item.setOrder(order);
-            item.setProduct(product);
-            item.setPriceAtPurchase(product.getPrice());
-            item.setQuantity(1);
+        order.setTotalAmount(order.getOrderItems().stream()
+                .map(oi -> oi.getPriceAtPurchase().multiply(BigDecimal.valueOf(oi.getQuantity())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add)
+                .setScale(Constants.MONEY_SCALE, RoundingMode.HALF_UP));
 
-            double platformFee = product.getPrice() * 0.1;
-            item.setPlatformFee(platformFee);
-            item.setSellerEarnings(product.getPrice() - platformFee);
+        if (order.getTotalAmount().signum() <= 0) {
+            throw new BadRequestException("Order total must be greater than zero");
+        }
 
-            return item;
+        return orderRepository.save(order);
+    }
 
-        }).toList();
+    private OrderItem toOrderItem(CartItem cartItem) {
+        Product product = cartItem.getProduct();
+        BigDecimal price = product.getPrice();
+        BigDecimal lineTotal = price.multiply(BigDecimal.valueOf(cartItem.getQuantity()));
+        BigDecimal platformFee = lineTotal.multiply(Constants.PLATFORM_FEE_RATE)
+                .setScale(Constants.MONEY_SCALE, RoundingMode.HALF_UP);
 
-        order.setOrderItems(orderItems);
-
-        double totalAmount = orderItems.stream()
-                .mapToDouble(OrderItem::getPriceAtPurchase)
-                .sum();
-
-        order.setTotalAmount(totalAmount);
-
-        Order savedOrder = orderRepository.save(order);
-
-        return OrderResponse.builder()
-                .orderNumber(savedOrder.getOrderNumber())
-                .totalAmount(savedOrder.getTotalAmount())
-                .status(savedOrder.getStatus())
-                .createdAt(savedOrder.getCreatedAt())
-                .products(products.stream()
-                        .map(Product::getTitle)
-                        .toList())
+        return OrderItem.builder()
+                .product(product)
+                .priceAtPurchase(price)
+                .quantity(cartItem.getQuantity())
+                .platformFee(platformFee)
+                .sellerEarnings(lineTotal.subtract(platformFee))
                 .build();
     }
 
+    @Transactional(readOnly = true)
     @Override
-    public List<OrderResponse> getUserOrders(Long userId) {
-
-        List<Order> orders = orderRepository.findByUserId(userId);
-
-        return orders.stream().map(order -> {
-
-            List<String> products = order.getOrderItems().stream()
-                    .map(item -> item.getProduct().getTitle())
-                    .toList();
-
-            return OrderResponse.builder()
-                    .orderNumber(order.getOrderNumber())
-                    .totalAmount(order.getTotalAmount())
-                    .status(order.getStatus())
-                    .createdAt(order.getCreatedAt())
-                    .products(products)
-                    .build();
-
-        }).collect(Collectors.toList());
+    public List<OrderResponse> getUserOrders(String email) {
+        User user = getUser(email);
+        return orderRepository.findByUserIdOrderByCreatedAtDesc(user.getId())
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
+    @Transactional(readOnly = true)
     @Override
-    public OrderResponse getOrderByOrderNumber(String orderNumber) {
+    public OrderResponse getOrderByOrderNumber(String orderNumber, String email) {
+        return toResponse(getOwnedOrder(orderNumber, email));
+    }
 
-        Order order = orderRepository.findByOrderNumber(orderNumber);
+    @Transactional(readOnly = true)
+    @Override
+    public Order getOwnedOrder(String orderNumber, String email) {
+        User user = getUser(email);
+        // Same 404 whether the order is missing or belongs to someone else
+        return orderRepository.findByOrderNumberAndUserId(orderNumber, user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found"));
+    }
 
-        if (order == null) {
-            throw new ResourceNotFoundException("Order not found");
-        }
-
+    private OrderResponse toResponse(Order order) {
         List<String> products = order.getOrderItems().stream()
                 .map(item -> item.getProduct().getTitle())
                 .toList();
@@ -116,7 +126,7 @@ public class OrderServiceImpl implements OrderService {
         return OrderResponse.builder()
                 .orderNumber(order.getOrderNumber())
                 .totalAmount(order.getTotalAmount())
-                .status(order.getStatus())
+                .status(order.getStatus().name())
                 .createdAt(order.getCreatedAt())
                 .products(products)
                 .build();

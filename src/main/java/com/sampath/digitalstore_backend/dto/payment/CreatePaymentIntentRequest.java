@@ -1,9 +1,9 @@
 package com.sampath.digitalstore_backend.dto.payment;
 
 import lombok.*;
-import java.util.List;
 
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class CreatePaymentIntentRequest {
-    private List<Long> productIds;
+    // Optional: pay for an existing PENDING order. When omitted, a new order is created from the cart.
+    private String orderNumber;
 }

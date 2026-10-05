@@ -6,12 +6,19 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByUserId(Long userId);
 
-    Order findByOrderNumber(String orderNumber);
+    List<Order> findByUserIdOrderByCreatedAtDesc(Long userId);
+
+    Optional<Order> findByOrderNumber(String orderNumber);
+
+    Optional<Order> findByOrderNumberAndUserId(String orderNumber, Long userId);
+
+    Optional<Order> findByPaymentIntentId(String paymentIntentId);
 
     @Query("""
         SELECT COUNT(oi) > 0
@@ -19,7 +26,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
         JOIN o.orderItems oi
         WHERE o.user.id = :userId
           AND oi.product.id = :productId
-          AND o.status = 'PAID'
+          AND o.status = com.sampath.digitalstore_backend.entity.OrderStatus.PAID
     """)
     boolean hasPurchasedProduct(@Param("userId") Long userId, @Param("productId") Long productId);
 }

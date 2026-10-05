@@ -3,6 +3,8 @@ package com.sampath.digitalstore_backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -25,8 +27,8 @@ public class Product {
     @Column(length = 3000)
     private String description;
 
-    @Column(nullable = false)
-    private Double price;
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal price;
 
     @Column(nullable = false)
     private String productType;
@@ -40,6 +42,7 @@ public class Product {
     private String previewUrl;
 
     @Column(nullable = false)
+    @Builder.Default
     private boolean isPublished = false;
 
     // Seller relationship

@@ -1,441 +1,430 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowRight,
+  DollarSign,
+  Eye,
+  EyeOff,
+  LayoutDashboard,
+  Package,
+  Receipt,
+  Search,
+  ServerCrash,
+  Store,
+  Trash2,
+  UserCheck,
+  UserX,
+  Users,
+} from "lucide-react";
 import DashboardLayout, { NavItem } from "@/components/DashboardLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { apiClient } from "@/lib/api";
+import { ProductCover } from "@/components/ProductCard";
+import { EmptyState, OrderCards, SegmentedTabs, Skeleton, Spinner, StatCard, StatusBadge } from "@/components/ui";
+import { useHashTab } from "@/hooks/useHashTab";
+import { AdminUser, apiClient, Product } from "@/lib/api";
+import { cn, formatDate, formatPrice, initials } from "@/lib/format";
+import { productTypeMeta } from "@/lib/product-types";
 
-const navItems: NavItem[] = [
-  {
-    href: "/dashboard/admin",
-    label: "Dashboard",
-    section: "Overview",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/admin#users",
-    label: "Manage Users",
-    section: "Management",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/admin#products",
-    label: "Manage Products",
-    section: "Management",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-      </svg>
-    ),
-  },
-  {
-    href: "/dashboard/admin#orders",
-    label: "View Orders",
-    section: "Management",
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-      </svg>
-    ),
-  },
-];
+const TABS = ["overview", "users", "products", "orders"] as const;
+type Tab = (typeof TABS)[number];
 
-type Tab = "overview" | "users" | "products" | "orders";
+const ROLE_BADGE: Record<string, string> = { ADMIN: "badge-red", SELLER: "badge-yellow", USER: "badge-blue" };
 
-function StatCard({ label, value, color, sub }: { label: string; value: string | number; color: string; sub?: string }) {
+function PublishBadge({ published }: { published?: boolean }) {
   return (
-    <div className="card-stat">
-      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
-      <p className={`text-3xl font-bold mt-1 ${color}`}>{value}</p>
-      {sub && <p className="text-xs text-muted-foreground mt-1">{sub}</p>}
-    </div>
+    <span className={published ? "badge-green" : "badge-yellow"}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {published ? "Published" : "Draft"}
+    </span>
+  );
+}
+
+function ActiveBadge({ enabled }: { enabled: boolean }) {
+  return (
+    <span className={enabled ? "badge-green" : "badge-gray"}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {enabled ? "Active" : "Disabled"}
+    </span>
+  );
+}
+
+function AdminApiMissing({ what }: { what: string }) {
+  return (
+    <EmptyState
+      icon={ServerCrash}
+      title={`${what} are unavailable`}
+      description="The backend does not expose the /api/admin endpoints yet. Add an admin controller to enable this view."
+    />
   );
 }
 
 export default function AdminDashboardPage() {
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useHashTab(TABS, "overview");
   const [userSearch, setUserSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const queryClient = useQueryClient();
 
+  // Admin-only endpoints: may not exist on the backend, so failures are shown, not retried
   const statsQuery = useQuery({
     queryKey: ["admin-stats"],
-    queryFn: async () => {
-      try { return (await apiClient.adminGetStats()).data; }
-      catch { return { totalUsers: 0, totalSellers: 0, totalProducts: 0, totalOrders: 0, totalRevenue: 0 }; }
-    },
+    queryFn: async () => (await apiClient.adminGetStats()).data,
+    retry: false,
   });
-
   const usersQuery = useQuery({
     queryKey: ["admin-users"],
     queryFn: async () => (await apiClient.adminGetUsers()).data,
-    enabled: tab === "users" || tab === "overview",
+    retry: false,
   });
-
-  const productsQuery = useQuery({
-    queryKey: ["admin-products"],
-    queryFn: async () => (await apiClient.adminGetProducts()).data,
-    enabled: tab === "products" || tab === "overview",
-  });
-
   const ordersQuery = useQuery({
     queryKey: ["admin-orders"],
-    queryFn: async () => {
-      try { return (await apiClient.adminGetOrders()).data; }
-      catch { return []; }
-    },
+    queryFn: async () => (await apiClient.adminGetOrders()).data,
+    retry: false,
     enabled: tab === "orders",
   });
 
-  // Mutations
-  const deleteUserMutation = useMutation({
-    mutationFn: apiClient.adminDeleteUser,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
+  // Products use the regular endpoints, which already return everything for admins
+  const productsQuery = useQuery({
+    queryKey: ["admin-products"],
+    queryFn: async () => (await apiClient.getProducts()).data,
   });
+
+  const refreshProducts = () => {
+    queryClient.invalidateQueries({ queryKey: ["admin-products"] });
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+  };
 
   const toggleUserMutation = useMutation({
     mutationFn: ({ id, enabled }: { id: number; enabled: boolean }) => apiClient.adminToggleUser(id, enabled),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
   });
-
-  const deleteProductMutation = useMutation({
-    mutationFn: apiClient.adminDeleteProduct,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-products"] }),
+  const deleteUserMutation = useMutation({
+    mutationFn: apiClient.adminDeleteUser,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-users"] }),
   });
+  const publishMutation = useMutation({ mutationFn: apiClient.publishProduct, onSuccess: refreshProducts });
+  const unpublishMutation = useMutation({ mutationFn: apiClient.unpublishProduct, onSuccess: refreshProducts });
+  const deleteProductMutation = useMutation({ mutationFn: apiClient.deleteSellerProduct, onSuccess: refreshProducts });
 
-  const publishProductMutation = useMutation({
-    mutationFn: apiClient.adminPublishProduct,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-products"] }),
-  });
-
-  const unpublishProductMutation = useMutation({
-    mutationFn: apiClient.adminUnpublishProduct,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-products"] }),
-  });
-
-  const stats = statsQuery.data;
   const users = usersQuery.data ?? [];
   const products = productsQuery.data ?? [];
-  const orders = (ordersQuery.data as { id: number; orderNumber: string; userEmail: string; status: string; totalAmount: number; createdAt: string }[] | undefined) ?? [];
+  const orders = ordersQuery.data ?? [];
+  const stats = statsQuery.data;
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.role.toLowerCase().includes(userSearch.toLowerCase()),
+  const filteredUsers = users.filter((u) =>
+    `${u.email} ${u.role}`.toLowerCase().includes(userSearch.trim().toLowerCase()),
+  );
+  const filteredProducts = products.filter((p) =>
+    `${p.title} ${p.sellerEmail ?? ""}`.toLowerCase().includes(productSearch.trim().toLowerCase()),
   );
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.title.toLowerCase().includes(productSearch.toLowerCase()) ||
-      (p.sellerEmail ?? "").toLowerCase().includes(productSearch.toLowerCase()),
+  const publishedCount = products.filter((p) => p.published).length;
+  const sellerCount = new Set(products.map((p) => p.sellerEmail).filter(Boolean)).size;
+  const togglingId =
+    (publishMutation.isPending && publishMutation.variables) || (unpublishMutation.isPending && unpublishMutation.variables) || undefined;
+
+  // Shared by the phone cards and the desktop tables
+  const userActions = (user: AdminUser) => (
+    <>
+      <button
+        className={cn("btn-sm", user.enabled ? "btn-warning" : "btn-success")}
+        onClick={() => toggleUserMutation.mutate({ id: user.id, enabled: !user.enabled })}
+        disabled={toggleUserMutation.isPending}
+      >
+        {user.enabled ? <UserX className="h-3.5 w-3.5" /> : <UserCheck className="h-3.5 w-3.5" />}
+        {user.enabled ? "Disable" : "Enable"}
+      </button>
+      <button
+        className="btn-icon btn-ghost h-9 w-9 hover:text-danger"
+        onClick={() => {
+          if (confirm(`Delete user "${user.email}"?`)) deleteUserMutation.mutate(user.id);
+        }}
+        disabled={deleteUserMutation.isPending}
+        aria-label={`Delete ${user.email}`}
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </>
   );
 
-  const sellers = users.filter((u) => u.role === "SELLER");
-  const regularUsers = users.filter((u) => u.role === "USER");
+  const productActions = (product: Product) => (
+    <>
+      <button
+        className={cn("btn-sm", product.published ? "btn-warning" : "btn-success")}
+        onClick={() => (product.published ? unpublishMutation : publishMutation).mutate(product.id)}
+        disabled={togglingId === product.id}
+      >
+        {togglingId === product.id ? <Spinner className="h-3.5 w-3.5" /> : product.published ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        {product.published ? "Unpublish" : "Publish"}
+      </button>
+      <button
+        className="btn-icon btn-ghost h-9 w-9 hover:text-danger"
+        onClick={() => {
+          if (confirm(`Delete "${product.title}"? This cannot be undone.`)) deleteProductMutation.mutate(product.id);
+        }}
+        disabled={deleteProductMutation.isPending}
+        aria-label={`Delete ${product.title}`}
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+    </>
+  );
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "overview", label: "Overview" },
-    { id: "users", label: "Users" },
-    { id: "products", label: "Products" },
-    { id: "orders", label: "Orders" },
+  const navItems: NavItem[] = [
+    { label: "Overview", icon: LayoutDashboard, tab: "overview", section: "Admin" },
+    { label: "Users", icon: Users, tab: "users", section: "Manage", count: users.length || undefined },
+    { label: "Products", icon: Package, tab: "products", section: "Manage", count: products.length },
+    { label: "Orders", icon: Receipt, tab: "orders", section: "Manage" },
+    { label: "View storefront", icon: Store, href: "/products", section: "Store" },
   ];
 
   return (
     <ProtectedRoute role="ADMIN">
-      <DashboardLayout title="Admin Panel" navItems={navItems} badgeColor="red">
-        {/* Tabs */}
-        <div className="flex gap-1 mb-6 bg-muted rounded-xl p-1 w-fit flex-wrap">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                tab === t.id ? "bg-card shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
+      <DashboardLayout
+        title="Admin console"
+        subtitle="Platform health, users and catalog"
+        navItems={navItems}
+        activeTab={tab}
+        onTabChange={(t) => setTab(t as Tab)}
+        badgeColor="red"
+      >
+        <div className="mb-6">
+          <SegmentedTabs
+            tabs={[
+              { id: "overview", label: "Overview" },
+              { id: "users", label: "Users" },
+              { id: "products", label: "Products", count: products.length },
+              { id: "orders", label: "Orders" },
+            ]}
+            value={tab}
+            onChange={setTab}
+          />
         </div>
 
-        {/* Overview */}
+        {/* ── Overview ── */}
         {tab === "overview" && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              <StatCard label="Total Users" value={stats?.totalUsers ?? regularUsers.length} color="text-primary" />
-              <StatCard label="Sellers" value={stats?.totalSellers ?? sellers.length} color="text-yellow-500" />
-              <StatCard label="Products" value={stats?.totalProducts ?? products.length} color="text-blue-500" />
-              <StatCard label="Orders" value={stats?.totalOrders ?? 0} color="text-purple-500" />
-              <StatCard label="Revenue" value={`$${(stats?.totalRevenue ?? 0).toFixed(2)}`} color="text-emerald-500" />
-            </div>
-
-            {/* Quick nav cards */}
-            <div>
-              <h2 className="section-title mb-4">Administration</h2>
-              <div className="grid sm:grid-cols-3 gap-4">
-                {[
-                  { label: "Manage Users", id: "users" as Tab, desc: `${regularUsers.length} customers, ${sellers.length} sellers`, color: "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300" },
-                  { label: "Manage Products", id: "products" as Tab, desc: `${products.length} total products`, color: "bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300" },
-                  { label: "View Orders", id: "orders" as Tab, desc: "Review all platform orders", color: "bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-300" },
-                ].map((a) => (
-                  <button key={a.id} onClick={() => setTab(a.id)} className="card text-left hover:border-primary/50 group">
-                    <div className={`inline-flex rounded-lg p-2.5 mb-3 ${a.color}`}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    </div>
-                    <p className="font-semibold text-sm group-hover:text-primary transition-colors">{a.label}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{a.desc}</p>
-                  </button>
-                ))}
+          <div className="space-y-8">
+            {statsQuery.isError && (
+              <div className="alert-warning">
+                <ServerCrash className="h-4 w-4 shrink-0" />
+                Platform stats need the /api/admin endpoints, which the backend doesn&apos;t provide yet. Catalog numbers below are live.
               </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+              <StatCard label="Products" value={products.length} icon={Package} loading={productsQuery.isLoading} hint={`${publishedCount} published`} />
+              <StatCard label="Active sellers" value={stats?.totalSellers ?? sellerCount} icon={Store} tone="warning" loading={productsQuery.isLoading} />
+              <StatCard label="Users" value={stats?.totalUsers ?? "—"} icon={Users} tone="accent" loading={statsQuery.isLoading} />
+              <StatCard label="Revenue" value={stats ? formatPrice(stats.totalRevenue) : "—"} icon={DollarSign} tone="success" loading={statsQuery.isLoading} hint={stats ? `${stats.totalOrders} orders` : undefined} />
             </div>
 
-            {/* Recent users */}
-            {users.length > 0 && (
-              <div>
-                <div className="section-header">
-                  <h2 className="section-title">Recent Users</h2>
-                  <button onClick={() => setTab("users")} className="btn-secondary btn btn-sm">View all</button>
-                </div>
-                <div className="card p-0 overflow-hidden">
-                  <table className="data-table">
-                    <thead><tr><th>Email</th><th>Role</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {users.slice(0, 5).map((u) => (
-                        <tr key={u.id}>
-                          <td className="font-medium">{u.email}</td>
-                          <td>
-                            <span className={u.role === "ADMIN" ? "badge-red" : u.role === "SELLER" ? "badge-yellow" : "badge-blue"}>
-                              {u.role}
-                            </span>
-                          </td>
-                          <td><span className={u.enabled ? "badge-green" : "badge-gray"}>{u.enabled ? "Active" : "Disabled"}</span></td>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                { id: "users" as Tab, label: "Manage users", desc: "Roles and account status", icon: Users, tone: "bg-accent/10 text-accent" },
+                { id: "products" as Tab, label: "Moderate catalog", desc: `${products.length - publishedCount} drafts, ${publishedCount} live`, icon: Package, tone: "bg-primary/10 text-primary" },
+                { id: "orders" as Tab, label: "Review orders", desc: "All platform transactions", icon: Receipt, tone: "bg-success/10 text-success" },
+              ].map((card) => (
+                <button key={card.id} onClick={() => setTab(card.id)} className="card card-hover group flex items-center gap-4 text-left">
+                  <span className={cn("flex h-11 w-11 items-center justify-center rounded-2xl", card.tone)}>
+                    <card.icon className="h-5 w-5" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-display font-bold">{card.label}</p>
+                    <p className="truncate text-sm text-muted-foreground">{card.desc}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Users ── */}
+        {tab === "users" &&
+          (usersQuery.isLoading ? (
+            <Skeleton className="h-72 w-full rounded-2xl" />
+          ) : usersQuery.isError ? (
+            <AdminApiMissing what="Users" />
+          ) : (
+            <div className="space-y-5">
+              <div className="relative max-w-xs">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input className="input pl-10" type="search" placeholder="Search email or role…" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} />
+              </div>
+              {filteredUsers.length === 0 ? (
+                <EmptyState icon={Users} title="No users found" />
+              ) : (
+                <>
+                  <ul className="space-y-3 sm:hidden">
+                    {filteredUsers.map((user) => (
+                      <li key={user.id} className="card space-y-3 p-4">
+                        <div className="flex items-center gap-3">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-sm font-semibold">{initials(user.email)}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold">{user.email}</p>
+                            <p className="text-xs text-muted-foreground">Joined {formatDate(user.createdAt)}</p>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={ROLE_BADGE[user.role] ?? "badge-gray"}>{user.role}</span>
+                          <ActiveBadge enabled={user.enabled} />
+                        </div>
+                        {user.role !== "ADMIN" && (
+                          <div className="flex items-center justify-between gap-2 border-t border-border pt-3">{userActions(user)}</div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="table-wrap hidden sm:block">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>User</th>
+                          <th>Role</th>
+                          <th>Status</th>
+                          <th>Joined</th>
+                          <th className="text-right">Actions</th>
                         </tr>
-                      ))}
+                      </thead>
+                      <tbody>
+                        {filteredUsers.map((user) => (
+                          <tr key={user.id}>
+                            <td>
+                              <div className="flex items-center gap-3">
+                                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold">{initials(user.email)}</span>
+                                <span className="font-medium">{user.email}</span>
+                              </div>
+                            </td>
+                            <td><span className={ROLE_BADGE[user.role] ?? "badge-gray"}>{user.role}</span></td>
+                            <td><ActiveBadge enabled={user.enabled} /></td>
+                            <td className="text-muted-foreground">{formatDate(user.createdAt)}</td>
+                            <td>
+                              {user.role !== "ADMIN" && <div className="flex justify-end gap-1.5">{userActions(user)}</div>}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+
+        {/* ── Products ── */}
+        {tab === "products" && (
+          <div className="space-y-5">
+            <div className="relative max-w-xs">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input className="input pl-10" type="search" placeholder="Search title or seller…" value={productSearch} onChange={(e) => setProductSearch(e.target.value)} />
+            </div>
+
+            {productsQuery.isLoading ? (
+              <Skeleton className="h-72 w-full rounded-2xl" />
+            ) : filteredProducts.length === 0 ? (
+              <EmptyState icon={Package} title="No products found" />
+            ) : (
+              <>
+                <ul className="space-y-3 sm:hidden">
+                  {filteredProducts.map((product) => (
+                    <li key={product.id} className="card space-y-3 p-3">
+                      <div className="flex gap-3">
+                        <ProductCover product={product} className="h-16 w-20 shrink-0 rounded-lg [&_p]:hidden [&_svg]:h-5 [&_svg]:w-5 [&>div:last-child]:p-2" />
+                        <div className="min-w-0 flex-1">
+                          <p className="line-clamp-2 text-sm font-semibold">{product.title}</p>
+                          <p className="truncate text-xs text-muted-foreground">{product.sellerEmail ?? "—"}</p>
+                          <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                            <span className="text-sm font-bold">{formatPrice(product.price)}</span>
+                            <PublishBadge published={product.published} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between gap-2 border-t border-border pt-3">{productActions(product)}</div>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="table-wrap hidden sm:block">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>Seller</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th className="text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredProducts.map((product) => {
+                        const meta = productTypeMeta(product.productType);
+                        return (
+                          <tr key={product.id}>
+                            <td>
+                              <div className="flex items-center gap-3">
+                                <ProductCover product={product} className="h-11 w-14 shrink-0 rounded-lg [&_p]:hidden [&_svg]:h-5 [&_svg]:w-5 [&>div:last-child]:p-2" />
+                                <div className="min-w-0">
+                                  <p className="max-w-[16rem] truncate font-semibold">{product.title}</p>
+                                  <p className="text-xs text-muted-foreground">{meta.label}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="text-muted-foreground">{product.sellerEmail ?? "—"}</td>
+                            <td className="font-semibold">{formatPrice(product.price)}</td>
+                            <td><PublishBadge published={product.published} /></td>
+                            <td>
+                              <div className="flex justify-end gap-1.5">{productActions(product)}</div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </>
             )}
           </div>
         )}
 
-        {/* Users Tab */}
-        {tab === "users" && (
-          <div>
-            <div className="section-header">
-              <h2 className="section-title">All Users ({filteredUsers.length})</h2>
+        {/* ── Orders ── */}
+        {tab === "orders" &&
+          (ordersQuery.isLoading ? (
+            <Skeleton className="h-72 w-full rounded-2xl" />
+          ) : ordersQuery.isError ? (
+            <AdminApiMissing what="Orders" />
+          ) : orders.length === 0 ? (
+            <EmptyState icon={Receipt} title="No orders yet" />
+          ) : (
+            <>
+            <OrderCards orders={orders} showCustomer />
+            <div className="table-wrap hidden sm:block">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Order</th>
+                    <th>Customer</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th className="text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order) => (
+                    <tr key={order.orderNumber}>
+                      <td className="font-mono text-xs font-semibold">#{order.orderNumber.slice(0, 8)}</td>
+                      <td className="text-muted-foreground">{order.userEmail ?? "—"}</td>
+                      <td className="whitespace-nowrap text-muted-foreground">{formatDate(order.createdAt)}</td>
+                      <td><StatusBadge status={order.status} /></td>
+                      <td className="text-right font-semibold">{formatPrice(order.totalAmount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-
-            <div className="mb-4">
-              <input
-                className="input max-w-sm"
-                type="search"
-                placeholder="Search by email or role…"
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-              />
-            </div>
-
-            {usersQuery.isLoading && <p className="text-muted-foreground">Loading users…</p>}
-
-            {!usersQuery.isLoading && filteredUsers.length === 0 && (
-              <div className="empty-state">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                <p>No users found.</p>
-              </div>
-            )}
-
-            {filteredUsers.length > 0 && (
-              <div className="card p-0 overflow-hidden overflow-x-auto">
-                <table className="data-table">
-                  <thead>
-                    <tr><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map((user) => (
-                      <tr key={user.id}>
-                        <td className="font-medium">{user.email}</td>
-                        <td>
-                          <span className={user.role === "ADMIN" ? "badge-red" : user.role === "SELLER" ? "badge-yellow" : "badge-blue"}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={user.enabled ? "badge-green" : "badge-gray"}>
-                            {user.enabled ? "Active" : "Disabled"}
-                          </span>
-                        </td>
-                        <td className="text-muted-foreground text-sm">
-                          {user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "—"}
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {user.role !== "ADMIN" && (
-                              <button
-                                className={`btn btn-sm ${user.enabled ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300" : "btn-success"}`}
-                                onClick={() => toggleUserMutation.mutate({ id: user.id, enabled: !user.enabled })}
-                                disabled={toggleUserMutation.isPending}
-                              >
-                                {user.enabled ? "Disable" : "Enable"}
-                              </button>
-                            )}
-                            {user.role !== "ADMIN" && (
-                              <button
-                                className="btn-danger btn btn-sm"
-                                onClick={() => { if (confirm(`Delete user "${user.email}"?`)) deleteUserMutation.mutate(user.id); }}
-                                disabled={deleteUserMutation.isPending}
-                              >
-                                Delete
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Products Tab */}
-        {tab === "products" && (
-          <div>
-            <div className="section-header">
-              <h2 className="section-title">All Products ({filteredProducts.length})</h2>
-            </div>
-
-            <div className="mb-4">
-              <input
-                className="input max-w-sm"
-                type="search"
-                placeholder="Search by title or seller…"
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-              />
-            </div>
-
-            {productsQuery.isLoading && <p className="text-muted-foreground">Loading products…</p>}
-
-            {!productsQuery.isLoading && filteredProducts.length === 0 && (
-              <div className="empty-state">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
-                <p>No products found.</p>
-              </div>
-            )}
-
-            {filteredProducts.length > 0 && (
-              <div className="card p-0 overflow-hidden overflow-x-auto">
-                <table className="data-table">
-                  <thead>
-                    <tr><th>Title</th><th>Seller</th><th>Type</th><th>Price</th><th>Status</th><th>Actions</th></tr>
-                  </thead>
-                  <tbody>
-                    {filteredProducts.map((product) => (
-                      <tr key={product.id}>
-                        <td>
-                          <p className="font-medium">{product.title}</p>
-                          <p className="text-xs text-muted-foreground line-clamp-1">{product.description}</p>
-                        </td>
-                        <td className="text-muted-foreground text-sm">{product.sellerEmail ?? "—"}</td>
-                        <td><span className="badge-blue">{product.productType}</span></td>
-                        <td className="font-medium">${product.price?.toFixed(2)}</td>
-                        <td>
-                          <span className={product.published ? "badge-green" : "badge-yellow"}>
-                            {product.published ? "Published" : "Draft"}
-                          </span>
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {product.published ? (
-                              <button
-                                className="btn btn-sm bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300"
-                                onClick={() => unpublishProductMutation.mutate(product.id)}
-                                disabled={unpublishProductMutation.isPending}
-                              >
-                                Unpublish
-                              </button>
-                            ) : (
-                              <button
-                                className="btn-success btn btn-sm"
-                                onClick={() => publishProductMutation.mutate(product.id)}
-                                disabled={publishProductMutation.isPending}
-                              >
-                                Publish
-                              </button>
-                            )}
-                            <button
-                              className="btn-danger btn btn-sm"
-                              onClick={() => { if (confirm(`Delete "${product.title}"?`)) deleteProductMutation.mutate(product.id); }}
-                              disabled={deleteProductMutation.isPending}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Orders Tab */}
-        {tab === "orders" && (
-          <div>
-            <div className="section-header">
-              <h2 className="section-title">All Orders ({orders.length})</h2>
-            </div>
-
-            {ordersQuery.isLoading && <p className="text-muted-foreground">Loading orders…</p>}
-
-            {!ordersQuery.isLoading && orders.length === 0 && (
-              <div className="empty-state">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                <p>No orders found.</p>
-              </div>
-            )}
-
-            {orders.length > 0 && (
-              <div className="card p-0 overflow-hidden overflow-x-auto">
-                <table className="data-table">
-                  <thead>
-                    <tr><th>Order #</th><th>Customer</th><th>Status</th><th>Amount</th><th>Date</th></tr>
-                  </thead>
-                  <tbody>
-                    {orders.map((order) => (
-                      <tr key={order.id}>
-                        <td className="font-medium font-mono text-sm">#{order.orderNumber}</td>
-                        <td className="text-muted-foreground">{order.userEmail ?? "—"}</td>
-                        <td>
-                          <span className={`badge ${order.status === "COMPLETED" ? "badge-green" : order.status === "PENDING" ? "badge-yellow" : "badge-gray"}`}>
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="font-semibold">${order.totalAmount?.toFixed(2)}</td>
-                        <td className="text-muted-foreground text-sm">{new Date(order.createdAt).toLocaleDateString()}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
+            </>
+          ))}
       </DashboardLayout>
     </ProtectedRoute>
   );

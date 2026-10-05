@@ -1,87 +1,182 @@
 "use client";
 
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowRight, Lock, Minus, Plus, ShieldCheck, ShoppingBag, Trash2 } from "lucide-react";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { ProductCover } from "@/components/ProductCard";
+import { EmptyState, PageHeader, Skeleton, Spinner } from "@/components/ui";
 import { useCart } from "@/hooks/useCart";
+import { apiClient, Product } from "@/lib/api";
+import { formatPrice } from "@/lib/format";
+import { productTypeMeta } from "@/lib/product-types";
+
+const MAX_QUANTITY = 99;
 
 export default function CartPage() {
-  const { cart, isLoadingCart, removeFromCart, clearCart } = useCart();
+  const {
+    cart,
+    itemCount,
+    isLoadingCart,
+    updateQuantity,
+    updatingProductId,
+    removeFromCart,
+    removingProductId,
+    clearCart,
+    isClearing,
+  } = useCart();
 
-  const itemCount = cart?.items?.length ?? 0;
+  // Cart items only carry id/title/price; join with the catalog for cover art and type
+  const productsQuery = useQuery({
+    queryKey: ["products"],
+    queryFn: async () => (await apiClient.getPublicProducts()).data,
+  });
+  const productById = new Map((productsQuery.data ?? []).map((p) => [p.id, p]));
+
+  const items = cart?.items ?? [];
 
   return (
     <ProtectedRoute>
-      <main className="container-page max-w-3xl">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-1">Shopping Cart</h1>
-          <p className="text-muted-foreground">{itemCount} item{itemCount !== 1 ? "s" : ""} in your cart</p>
-        </div>
-
-        {isLoadingCart && (
-          <div className="flex justify-center py-12">
-            <svg className="animate-spin h-8 w-8 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-            </svg>
-          </div>
-        )}
-
-        {!isLoadingCart && itemCount === 0 && (
-          <div className="empty-state">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            <p>Your cart is empty.</p>
-            <Link href="/products" className="btn-primary btn btn-sm">Browse products</Link>
-          </div>
-        )}
-
-        {itemCount > 0 && (
-          <div className="space-y-3 mb-6">
-            {cart?.items?.map((item) => (
-              <div key={item.productId} className="card flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold truncate">{item.title}</p>
-                  <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
-                </div>
-                <div className="flex items-center gap-4 shrink-0">
-                  <p className="font-bold text-primary">${item.lineTotal.toFixed(2)}</p>
-                  <button
-                    className="text-danger hover:opacity-70 transition-opacity"
-                    onClick={() => removeFromCart(item.productId)}
-                    title="Remove item"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {itemCount > 0 && (
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-muted-foreground">Subtotal</p>
-              <p className="font-semibold">${cart!.total.toFixed(2)}</p>
-            </div>
-            <div className="border-t border-border pt-4 flex items-center justify-between">
-              <p className="text-lg font-bold">Total</p>
-              <p className="text-2xl font-bold text-primary">${cart!.total.toFixed(2)}</p>
-            </div>
-            <div className="mt-4 flex gap-3">
+      <main className="container-page">
+        <PageHeader
+          eyebrow="Cart"
+          title="Your cart"
+          description={itemCount > 0 ? `${itemCount} item${itemCount === 1 ? "" : "s"} ready for checkout.` : undefined}
+          actions={
+            items.length > 0 && (
               <button
-                className="btn-secondary btn"
-                onClick={() => clearCart()}
+                className="btn-ghost btn-sm hover:text-danger"
+                onClick={() => {
+                  if (confirm("Remove all items from your cart?")) clearCart();
+                }}
+                disabled={isClearing}
               >
+                {isClearing ? <Spinner className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                 Clear cart
               </button>
-              <Link href="/checkout" className="btn-primary btn flex-1 justify-center">
-                Proceed to Checkout
-              </Link>
+            )
+          }
+        />
+
+        {isLoadingCart ? (
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px]">
+            <div className="space-y-4">
+              {[0, 1, 2].map((i) => <Skeleton key={i} className="h-32 w-full rounded-2xl" />)}
             </div>
+            <Skeleton className="h-72 w-full rounded-2xl" />
+          </div>
+        ) : items.length === 0 ? (
+          <EmptyState
+            icon={ShoppingBag}
+            title="Your cart is empty"
+            description="Find something you love — ebooks, courses and files are waiting."
+            action={
+              <Link href="/products" className="btn-primary">
+                Explore products
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_380px] lg:items-start">
+            <ul className="space-y-4">
+              {items.map((item) => {
+                const product: Product = productById.get(item.productId) ?? {
+                  id: item.productId,
+                  title: item.title,
+                  description: "",
+                  price: item.price,
+                  productType: "DIGITAL_FILE",
+                };
+                const meta = productTypeMeta(product.productType);
+                const busy = updatingProductId === item.productId || removingProductId === item.productId;
+
+                return (
+                  <li key={item.productId} className={`card flex gap-4 p-4 transition-opacity sm:gap-5 ${busy ? "opacity-60" : ""}`}>
+                    <Link href={`/products/${item.productId}`} className="group shrink-0 overflow-hidden rounded-xl">
+                      <ProductCover product={product} className="h-20 w-20 sm:h-28 sm:w-36 [&_p]:hidden" />
+                    </Link>
+
+                    <div className="flex min-w-0 flex-1 flex-col justify-between gap-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link href={`/products/${item.productId}`} className="line-clamp-1 font-display font-bold hover:text-primary">
+                            {item.title}
+                          </Link>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {meta.label} · {formatPrice(item.price)} each
+                          </p>
+                        </div>
+                        <p className="shrink-0 font-display text-lg font-bold">{formatPrice(item.lineTotal)}</p>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="inline-flex items-center rounded-xl border border-border bg-background">
+                          <button
+                            className="btn-icon btn-ghost h-9 w-9 rounded-r-none"
+                            onClick={() => updateQuantity({ productId: item.productId, quantity: item.quantity - 1 })}
+                            disabled={busy || item.quantity <= 1}
+                            aria-label="Decrease quantity"
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </button>
+                          <span className="w-10 text-center text-sm font-semibold tabular-nums" aria-live="polite">
+                            {updatingProductId === item.productId ? <Spinner className="mx-auto h-3.5 w-3.5" /> : item.quantity}
+                          </span>
+                          <button
+                            className="btn-icon btn-ghost h-9 w-9 rounded-l-none"
+                            onClick={() => updateQuantity({ productId: item.productId, quantity: item.quantity + 1 })}
+                            disabled={busy || item.quantity >= MAX_QUANTITY}
+                            aria-label="Increase quantity"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        <button
+                          className="btn-ghost btn-sm hover:text-danger"
+                          onClick={() => removeFromCart(item.productId)}
+                          aria-label={`Remove ${item.title}`}
+                          disabled={busy}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span className="hidden min-[400px]:inline">Remove</span>
+                        </button>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <aside className="card space-y-5 p-6 lg:sticky lg:top-24">
+              <h2 className="section-title">Order summary</h2>
+              <dl className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Subtotal ({itemCount} item{itemCount === 1 ? "" : "s"})</dt>
+                  <dd className="font-medium">{formatPrice(cart?.total)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">Delivery</dt>
+                  <dd className="font-medium text-success">Instant · Free</dd>
+                </div>
+                <div className="flex items-baseline justify-between border-t border-border pt-4">
+                  <dt className="font-semibold">Total</dt>
+                  <dd className="font-display text-3xl font-extrabold">{formatPrice(cart?.total)}</dd>
+                </div>
+              </dl>
+              <Link href="/checkout" className="btn-primary btn-lg btn-full">
+                <Lock className="h-4 w-4" />
+                Checkout securely
+              </Link>
+              <Link href="/products" className="btn-ghost btn-full">
+                Continue shopping
+              </Link>
+              <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                <ShieldCheck className="h-3.5 w-3.5 text-success" />
+                Payments are processed securely by Stripe
+              </p>
+            </aside>
           </div>
         )}
       </main>
